@@ -37,8 +37,12 @@ latencyRoutes.post('/test', async (c) => {
   return c.json({ started: true }, 202);
 });
 
-latencyRoutes.get('/stream', (c) =>
-  streamSSE(c, async (stream) => {
+latencyRoutes.get('/stream', (c) => {
+  // 反代默认会缓冲响应，SSE 就会表现为「进度条不动，等整批测完才跳到 100%」。
+  // nginx 认这个头并对该响应关掉缓冲，所以不需要在反代那边额外配置。
+  c.header('X-Accel-Buffering', 'no');
+
+  return streamSSE(c, async (stream) => {
     let closed = false;
     const pending: LatencyEvent[] = [];
     let notify: (() => void) | null = null;
@@ -79,8 +83,8 @@ latencyRoutes.get('/stream', (c) =>
     } finally {
       unsubscribe();
     }
-  }),
-);
+  });
+});
 
 latencyRoutes.get('/history/:nodeId', (c) => {
   const rows = db

@@ -22,7 +22,7 @@ fi
 
 BRANCH="${BRANCH:-main}"
 PORT="${PORT:-27981}"
-# 默认只监听回环：对外由 nginx 反代，服务本身不该暴露在公网
+# 默认只监听回环：对外由你的反向代理暴露，服务本身不该直接挂公网
 HOST="${HOST:-127.0.0.1}"
 MSUBGA_DATA_DIR="${MSUBGA_DATA_DIR:-$APP_DIR/data}"
 SKIP_PULL="${SKIP_PULL:-0}"

@@ -67,22 +67,16 @@ cp .env.deploy.example .env.deploy && vi .env.deploy
 SKIP_PULL=1 ./deploy.sh # 不拉代码，只重新构建重启
 ```
 
-### 配在 nginx 后面
+### 反向代理
 
-服务默认只监听 `127.0.0.1:27981`，对外由 nginx 反代。
-[deploy/nginx-msubga.conf](deploy/nginx-msubga.conf) 是一段可以直接追加的 server 块（子域名虚拟主机，
-不带 `default_server`，不影响同端口上的其他站点）：
+服务默认只监听 `127.0.0.1:27981`，对外怎么暴露由你自己决定（nginx、Caddy、frp 都行）。
+应用这边不需要反代做任何特殊配置：
 
-```bash
-sudo cp deploy/nginx-msubga.conf /etc/nginx/conf.d/msubga.conf
-sudo vi /etc/nginx/conf.d/msubga.conf   # 改证书路径
-sudo nginx -t && sudo systemctl reload nginx
-```
+- 会话 cookie 的 `Secure` 标记按「设置 → 站点 → 对外访问地址」判断，不依赖反代传 `X-Forwarded-Proto`
+- 测速的 SSE 流自带 `X-Accel-Buffering: no`，nginx 认这个头，不用手动关 buffering
 
-里面有两处不能省：
-
-- `proxy_set_header X-Forwarded-Proto $scheme` —— 服务端靠它判断要不要给会话 cookie 打 `Secure` 标记。少了它，HTTPS 站点的 cookie 会被当成明文连接签发。
-- `/api/latency/stream` 那段的 `proxy_buffering off` —— 测速进度是 SSE 长连接，nginx 默认会缓冲，表现就是进度条一直不动、等整批测完才跳到 100%。
+**唯一必须做的是把对外地址填对**（`.env.deploy` 里的 `MSUBGA_BASE_URL`，或部署后在设置页改），
+订阅链接按它拼；填错的话客户端会拿到一个够不着的地址。
 
 ### 开机自启
 
@@ -107,7 +101,7 @@ MSUBGA_PASSWORD=你的密码 MSUBGA_BASE_URL=https://你的域名 docker compose
 | --- | --- |
 | `PORT` / `HOST` | 监听地址，默认 `0.0.0.0:27981`；走反代时把 HOST 设成 `127.0.0.1` |
 | `MSUBGA_PASSWORD` | 首次启动时设置管理员密码。设置过之后就不再生效，改密码走设置页 |
-| `MSUBGA_BASE_URL` | 对外访问地址，订阅链接按它拼。**跑在反代后面时必须填**，否则链接是客户端够不着的内网地址。只在数据库里还没填过时生效 |
+| `MSUBGA_BASE_URL` | 对外访问地址，订阅链接按它拼，也决定 cookie 要不要带 `Secure`。**跑在反代后面时必须填**。只在数据库里还没填过时生效 |
 | `MSUBGA_DATA_DIR` | 数据目录，默认仓库根目录下的 `data/` |
 | `MIHOMO_PATH` | 手动指定 mihomo 可执行文件；不填则在设置页点「自动下载」 |
 
