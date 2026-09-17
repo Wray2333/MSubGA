@@ -17,7 +17,6 @@
     "@hono/node-server": "^1.13.8",
     "@msubga/core": "*",
     "adm-zip": "^0.5.16",
-    "better-sqlite3": "^11.8.1",
     "drizzle-orm": "^0.39.1",
     "hono": "^4.6.20",
     "nanoid": "^5.0.9",
@@ -26,7 +25,6 @@
   },
   "devDependencies": {
     "@types/adm-zip": "^0.5.7",
-    "@types/better-sqlite3": "^7.6.12",
     "@types/node": "^22.13.1",
     "drizzle-kit": "^0.30.4",
     "tsx": "^4.19.2"

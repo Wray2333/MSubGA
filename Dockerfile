@@ -1,6 +1,7 @@
 # ---------- 构建 ----------
-# 用 bookworm 而不是 alpine：better-sqlite3 的官方预编译包是按 glibc 出的，
-# alpine 的 musl 环境会退化成源码编译，镜像里得塞一整套构建工具链。
+# 全部依赖都是纯 JS（数据库走 Node 内置的 node:sqlite），不需要任何编译工具链。
+# 用 bookworm 而不是 alpine 是为了 mihomo 内核：运行时下载的是 linux-amd64 构建，
+# glibc 环境最稳妥。
 FROM node:22-bookworm-slim AS build
 
 WORKDIR /app

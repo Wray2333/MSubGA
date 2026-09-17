@@ -84,9 +84,10 @@ case "${1:-deploy}" in
   *) die "未知命令: $1（可用: deploy / stop / status）" ;;
 esac
 
-command -v node >/dev/null 2>&1 || die "没装 node。CentOS 上可以用 nvm 或 NodeSource 装 Node 20.11+"
-NODE_MAJOR="$(node -p 'process.versions.node.split(".")[0]')"
-[ "$NODE_MAJOR" -ge 20 ] || die "Node 版本太低（当前 $(node -v)），需要 20.11+"
+command -v node >/dev/null 2>&1 || die "没装 node。CentOS 上可以用 nvm 装：nvm install 22"
+# 数据库用的是 Node 内置的 node:sqlite，其中 setReturnArrays 需要 22.13+
+NODE_OK="$(node -p 'const [a,b]=process.versions.node.split(".").map(Number); (a>22||(a===22&&b>=13))?"1":"0"')"
+[ "$NODE_OK" = "1" ] || die "Node 版本太低（当前 $(node -v)），需要 22.13+ 或 24+"
 
 log "目录: $APP_DIR"
 log "分支: $BRANCH   端口: $HOST:$PORT"
