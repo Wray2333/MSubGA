@@ -1,0 +1,16 @@
+services:
+  msubga:
+    build: .
+    image: msubga:latest
+    container_name: msubga
+    restart: unless-stopped
+    ports:
+      - '3000:3000'
+    environment:
+      # 首次启动设置管理员密码，之后改这里不会再生效
+      MSUBGA_PASSWORD: ${MSUBGA_PASSWORD:-}
+    volumes:
+      - msubga-data:/data
+
+volumes:
+  msubga-data:

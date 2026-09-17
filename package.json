@@ -1,0 +1,33 @@
+{
+  "name": "msubga",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "MSubGA - Make subscription great again! 节点管理与订阅生成",
+  "workspaces": [
+    "packages/core",
+    "packages/server",
+    "packages/web"
+  ],
+  "scripts": {
+    "dev": "concurrently -n core,server,web -c magenta,blue,green \"npm:dev:core\" \"npm:dev:server\" \"npm:dev:web\"",
+    "dev:core": "npm run dev -w @msubga/core",
+    "dev:server": "npm run dev -w @msubga/server",
+    "dev:web": "npm run dev -w @msubga/web",
+    "build": "npm run build -w @msubga/core && npm run build -w @msubga/web && npm run build -w @msubga/server",
+    "start": "node packages/server/dist/index.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "db:generate": "npm run db:generate -w @msubga/server",
+    "db:migrate": "npm run db:migrate -w @msubga/server"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.5"
+  },
+  "engines": {
+    "node": ">=20.11"
+  }
+}

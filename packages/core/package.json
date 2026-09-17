@@ -1,0 +1,28 @@
+{
+  "name": "@msubga/core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "MSubGA 核心逻辑：协议解析、批量导入、配置生成。纯函数，零 IO。",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "sideEffects": false,
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "dev": "tsc -p tsconfig.json --watch --preserveWatchOutput",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "yaml": "^2.7.0",
+    "zod": "^3.24.1"
+  }
+}
