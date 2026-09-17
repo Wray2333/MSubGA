@@ -49,9 +49,11 @@ npm run dev
 仓库自带一键部署脚本。第一次先把配置准备好：
 
 ```bash
-git clone <你的仓库地址> /opt/MSubGA && cd /opt/MSubGA
+git clone <你的仓库地址> && cd MSubGA
 cp .env.deploy.example .env.deploy && vi .env.deploy
 ```
+
+放哪个目录都行，`deploy.sh` 按自己所在位置定位项目，不依赖固定路径。
 
 之后每次更新只要一条命令，它会拉代码、装依赖、构建、重启、做健康检查：
 
@@ -81,7 +83,7 @@ SKIP_PULL=1 ./deploy.sh # 不拉代码，只重新构建重启
 ### 开机自启
 
 ```bash
-sudo cp deploy/msubga.service /etc/systemd/system/
+sed "s#/path/to/MSubGA#$(pwd)#g" deploy/msubga.service | sudo tee /etc/systemd/system/msubga.service
 sudo systemctl daemon-reload && sudo systemctl enable --now msubga
 ```
 

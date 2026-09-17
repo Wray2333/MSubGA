@@ -1,6 +1,8 @@
 # 开机自启与崩溃自动重启。
 #
-#   sudo cp deploy/msubga.service /etc/systemd/system/
+# 下面三处 /path/to/MSubGA 要换成你的实际路径，一条命令搞定：
+#
+#   sed "s#/path/to/MSubGA#$(pwd)#g" deploy/msubga.service | sudo tee /etc/systemd/system/msubga.service
 #   sudo systemctl daemon-reload
 #   sudo systemctl enable --now msubga
 #
@@ -14,9 +16,9 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-WorkingDirectory=/opt/MSubGA
+WorkingDirectory=/path/to/MSubGA
 # 与 deploy.sh 共用同一份配置
-EnvironmentFile=-/opt/MSubGA/.env.deploy
+EnvironmentFile=-/path/to/MSubGA/.env.deploy
 Environment=NODE_ENV=production
 ExecStart=/usr/bin/env node packages/server/dist/index.js
 Restart=on-failure
@@ -27,8 +29,8 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=full
 
-StandardOutput=append:/opt/MSubGA/msubga.log
-StandardError=append:/opt/MSubGA/msubga.log
+StandardOutput=append:/path/to/MSubGA/msubga.log
+StandardError=append:/path/to/MSubGA/msubga.log
 
 [Install]
 WantedBy=multi-user.target
