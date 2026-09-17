@@ -22,8 +22,10 @@ fi
 
 BRANCH="${BRANCH:-main}"
 PORT="${PORT:-27981}"
-# 默认只监听回环：对外由你的反向代理暴露，服务本身不该直接挂公网
-HOST="${HOST:-127.0.0.1}"
+# 默认监听所有网卡：反代和本服务经常不在同一台机器，绑回环的话反代连不上。
+# 想收紧成只给同机反代用，就在 .env.deploy 里改成 127.0.0.1。
+# 注意 0.0.0.0 意味着内网可直连，记得别让路由器把这个端口也转发到公网。
+HOST="${HOST:-0.0.0.0}"
 MSUBGA_DATA_DIR="${MSUBGA_DATA_DIR:-$APP_DIR/data}"
 SKIP_PULL="${SKIP_PULL:-0}"
 # 交给 systemd 管进程时置 1：只拉代码和构建，不自己起服务
@@ -159,6 +161,16 @@ curl -fsS "$HEALTH_URL" >/dev/null || {
 
 log "部署成功"
 echo "    PID:  $NEW_PID"
-echo "    本地: http://127.0.0.1:$PORT/"
+echo "    监听: $HOST:$PORT"
 [ -n "${MSUBGA_BASE_URL:-}" ] && echo "    对外: $MSUBGA_BASE_URL/"
 echo "    日志: $LOG_FILE"
+
+# 健康检查走的是 127.0.0.1，绑在回环上也会通过，
+# 所以这里必须单独提醒一句，否则「部署成功」但别的机器连不上会很费解。
+if [ "$HOST" = "127.0.0.1" ] || [ "$HOST" = "localhost" ]; then
+  echo
+  echo "    注意：只监听回环，本机以外访问不到。"
+  echo "    反向代理在同一台机器上 —— 这是对的，保持不变。"
+  echo "    反代在别的机器、或想用 http://<内网IP>:$PORT 直连 —— 把 .env.deploy 里的"
+  echo "    HOST 改成 0.0.0.0 再跑一次，并确认防火墙放行了 $PORT。"
+fi
