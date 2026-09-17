@@ -529,3 +529,70 @@ describe('规则内容格式校验', () => {
     expect(issues.some((issue) => issue.message.includes('只能填 tcp 或 udp'))).toBe(true);
   });
 });
+
+describe('内置模板必须覆盖内网地址', () => {
+  it.each(BUILTIN_PROFILES.map((p) => [p.name, p] as const))(
+    '模板「%s」把局域网 IP 段放在第一条',
+    (_name, profile) => {
+      // 直连 IP 没有域名可匹配，域名类规则全都落空。
+      // 少了这条，访问 192.168.x / 172.16-31.x / 10.x 会一路掉到 MATCH 走代理。
+      expect(profile.definition.rules[0]).toMatchObject({
+        type: 'ruleset',
+        rulesetId: 'ls-lancidr',
+      });
+    },
+  );
+
+  it.each(BUILTIN_PROFILES.map((p) => [p.name, p] as const))(
+    '模板「%s」生成出来的第一条规则是局域网直连',
+    (_name, profile) => {
+      const doc = parse(
+        generateClashConfig({
+          nodes: sampleNodes,
+          profile: profile.definition,
+          rulesets,
+          options: defaultOptions,
+        }).yaml,
+      ) as Record<string, any>;
+
+      const rule = doc['rules'][0] as string;
+      expect(rule).toMatch(/^RULE-SET,局域网 IP,/);
+      // IP 类规则要带 no-resolve，否则每个域名都要先解析一次才能判断
+      expect(rule.endsWith(',no-resolve')).toBe(true);
+
+      // 目标必须是直连，不能是代理组
+      const target = rule.split(',')[2];
+      const group = doc['proxy-groups'].find((g: { name: string }) => g.name === target);
+      const members: string[] = group ? group.proxies : [target];
+      expect(members[0]).toBe('DIRECT');
+    },
+  );
+
+  it('局域网规则集按 IP 段匹配，内网域名另有一条按域名匹配', () => {
+    const lan = BUILTIN_RULESETS.find((item) => item.id === 'ls-lancidr');
+    expect(lan).toMatchObject({ behavior: 'ipcidr', kind: 'remote', format: 'yaml' });
+    expect(lan?.url).toContain('/lancidr.txt');
+
+    const priv = BUILTIN_RULESETS.find((item) => item.id === 'ls-private');
+    expect(priv).toMatchObject({ behavior: 'domain' });
+  });
+
+  it('所有内置规则集都指向 Loyalsoldier 的 release 分支', () => {
+    for (const ruleset of BUILTIN_RULESETS) {
+      expect(ruleset.kind).toBe('remote');
+      expect(ruleset.format).toBe('yaml');
+      expect(ruleset.url).toMatch(
+        /^https:\/\/raw\.githubusercontent\.com\/Loyalsoldier\/clash-rules\/release\/[\w-]+\.txt$/,
+      );
+    }
+  });
+
+  it('模板引用的规则集必须都存在', () => {
+    const ids = new Set(BUILTIN_RULESETS.map((item) => item.id));
+    for (const profile of BUILTIN_PROFILES) {
+      for (const rule of profile.definition.rules) {
+        if (rule.type === 'ruleset') expect(ids).toContain(rule.rulesetId);
+      }
+    }
+  });
+});

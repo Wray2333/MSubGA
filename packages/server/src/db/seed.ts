@@ -1,4 +1,5 @@
 import { BUILTIN_PROFILES, BUILTIN_RULESETS } from '@msubga/core';
+import { eq } from 'drizzle-orm';
 import { db } from './index.js';
 import { ruleProfiles, rulesets } from './schema.js';
 
@@ -61,6 +62,30 @@ export function seedBuiltins(): void {
           },
         })
         .run();
+    }
+
+    /*
+     * 清掉已经不在预置列表里的内置规则集。
+     * 换过规则集来源之后，旧的那批留在库里只会让人困惑。
+     * 但被模板引用着的不能删——用户可能复制过内置模板再改，
+     * 删了会让他们的模板直接生成不出配置。这种就改成非内置，交给用户自己处置。
+     */
+    const keep = new Set(BUILTIN_RULESETS.map((item) => item.id));
+    const referenced = new Set<string>();
+    for (const profile of tx.select().from(ruleProfiles).all()) {
+      for (const rule of profile.definition.rules) {
+        if (rule.type === 'ruleset') referenced.add(rule.rulesetId);
+      }
+    }
+
+    for (const row of tx.select().from(rulesets).where(eq(rulesets.builtin, true)).all()) {
+      if (keep.has(row.id)) continue;
+      if (referenced.has(row.id)) {
+        tx.update(rulesets).set({ builtin: false }).where(eq(rulesets.id, row.id)).run();
+        console.log(`[msubga] 规则集「${row.name}」已不在预置列表，但仍被模板引用，转为自定义保留`);
+      } else {
+        tx.delete(rulesets).where(eq(rulesets.id, row.id)).run();
+      }
     }
   });
 }

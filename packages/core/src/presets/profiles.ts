@@ -53,16 +53,18 @@ const serviceGroup = (key: string, name: string): ProxyGroupDef => ({
   extra: ['DIRECT'],
 });
 
-/** 直连组：DIRECT 必须排第一，否则客户端默认选中的是代理 */
-const directGroup = (): ProxyGroupDef => ({
-  key: 'CN',
-  name: '🎯 全球直连',
+/** 默认直连的服务组：DIRECT 必须排第一，否则客户端默认选中的是代理 */
+const directFirstGroup = (key: string, name: string): ProxyGroupDef => ({
+  key,
+  name,
   type: 'select',
   nodes: { mode: 'none' },
   include: ['PROXY'],
   extra: ['DIRECT'],
   extraFirst: true,
 });
+
+const directGroup = (): ProxyGroupDef => directFirstGroup('CN', '🎯 全球直连');
 
 const rejectGroup = (): ProxyGroupDef => ({
   key: 'ADS',
@@ -75,22 +77,32 @@ const rejectGroup = (): ProxyGroupDef => ({
 
 const rs = (rulesetId: string, target: string): RuleEntry => ({ type: 'ruleset', rulesetId, target });
 
+/**
+ * 内网相关的规则，三个模板都要，而且必须排最前：
+ * 直连 IP 没有域名可匹配，排在域名规则后面等于白排。
+ */
+const lanRules = (target: string): RuleEntry[] => [
+  rs('ls-lancidr', target),
+  rs('ls-private', target),
+  rs('ls-applications', target),
+];
+
 /* -------------------------------------------------------------------------- */
 
 const globalProxy: RuleProfileDefinition = {
   general,
   groups: [proxyGroup(), autoGroup()],
-  rules: [rs('rs-private', 'DIRECT'), { type: 'match', target: 'PROXY' }],
+  rules: [...lanRules('DIRECT'), { type: 'match', target: 'PROXY' }],
 };
 
 const cnDirect: RuleProfileDefinition = {
   general,
   groups: [proxyGroup(), autoGroup(), rejectGroup(), directGroup()],
   rules: [
-    rs('rs-ads', 'ADS'),
-    rs('rs-private', 'CN'),
-    rs('rs-cn-domain', 'CN'),
-    rs('rs-cn-ip', 'CN'),
+    ...lanRules('CN'),
+    rs('ls-reject', 'ADS'),
+    rs('ls-direct', 'CN'),
+    rs('ls-cncidr', 'CN'),
     { type: 'match', target: 'PROXY' },
   ],
 };
@@ -100,11 +112,9 @@ const ruleBased: RuleProfileDefinition = {
   groups: [
     proxyGroup(),
     autoGroup(),
-    serviceGroup('AI', '🤖 AI 服务'),
-    serviceGroup('MEDIA', '🎬 国际媒体'),
     serviceGroup('TELEGRAM', '✈️ 电报消息'),
-    serviceGroup('MICROSOFT', 'Ⓜ️ 微软服务'),
-    serviceGroup('APPLE', '🍎 苹果服务'),
+    serviceGroup('GOOGLE', '🔍 谷歌服务'),
+    directFirstGroup('APPLE', '🍎 苹果服务'),
     rejectGroup(),
     directGroup(),
     {
@@ -117,20 +127,18 @@ const ruleBased: RuleProfileDefinition = {
     },
   ],
   rules: [
-    rs('rs-ads', 'ADS'),
-    rs('rs-private', 'CN'),
-    rs('rs-openai', 'AI'),
-    rs('rs-telegram', 'TELEGRAM'),
-    rs('rs-youtube', 'MEDIA'),
-    rs('rs-netflix', 'MEDIA'),
-    rs('rs-spotify', 'MEDIA'),
-    rs('rs-github', 'PROXY'),
-    rs('rs-google', 'PROXY'),
-    rs('rs-twitter', 'PROXY'),
-    rs('rs-microsoft', 'MICROSOFT'),
-    rs('rs-apple', 'APPLE'),
-    rs('rs-cn-domain', 'CN'),
-    rs('rs-cn-ip', 'CN'),
+    ...lanRules('CN'),
+    rs('ls-reject', 'ADS'),
+    rs('ls-icloud', 'APPLE'),
+    rs('ls-apple', 'APPLE'),
+    rs('ls-google', 'GOOGLE'),
+    rs('ls-telegramcidr', 'TELEGRAM'),
+    rs('ls-proxy', 'PROXY'),
+    rs('ls-gfw', 'PROXY'),
+    rs('ls-greatfire', 'PROXY'),
+    rs('ls-tld-not-cn', 'PROXY'),
+    rs('ls-direct', 'CN'),
+    rs('ls-cncidr', 'CN'),
     { type: 'match', target: 'FINAL' },
   ],
 };
@@ -139,7 +147,7 @@ export const BUILTIN_PROFILES: readonly RuleProfileRecord[] = [
   {
     id: 'profile-rules',
     name: '规则分流（推荐）',
-    description: '按服务分流：广告拦截、AI、流媒体、微软苹果各自成组，国内直连，其余走代理',
+    description: 'Loyalsoldier 经典布局：广告拦截、苹果谷歌电报各自成组，国内直连，其余走代理',
     definition: ruleBased,
   },
   {
