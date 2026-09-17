@@ -16,6 +16,8 @@ export function formatTime(ts: number | null | undefined): string {
 
 /** 延迟分档着色：绿 < 200ms < 黄 < 500ms < 橙，失败一律红 */
 export function delayTone(delayMs: number | null | undefined, status: string | null | undefined): string {
+  // 没测过 ≠ 失败，别一上来就标红
+  if (status === null || status === undefined) return 'text-muted';
   if (status !== 'ok' || delayMs === null || delayMs === undefined) return 'text-danger';
   if (delayMs < 200) return 'text-ok';
   if (delayMs < 500) return 'text-warn';

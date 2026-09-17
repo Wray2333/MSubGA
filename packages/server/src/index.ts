@@ -2,10 +2,11 @@ import { existsSync } from 'node:fs';
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { logger } from 'hono/logger';
-import { HOST, INITIAL_PASSWORD, PORT, WEB_DIST_DIR } from './config.js';
+import { BASE_URL_ENV, HOST, INITIAL_PASSWORD, PORT, WEB_DIST_DIR } from './config.js';
 import { runMigrations } from './db/index.js';
 import { seedBuiltins } from './db/seed.js';
 import { isPasswordConfigured, setPassword } from './lib/auth.js';
+import { SETTING_KEYS, getSetting, setSetting } from './lib/settings.js';
 import { serveWebDist } from './lib/static.js';
 import { mihomo } from './mihomo/controller.js';
 import { authRoutes } from './routes/auth.js';
@@ -25,6 +26,12 @@ function bootstrap(): void {
   if (INITIAL_PASSWORD && !isPasswordConfigured()) {
     setPassword(INITIAL_PASSWORD);
     console.log('[msubga] 已按 MSUBGA_PASSWORD 设置管理员密码');
+  }
+
+  // 只在设置页还没填过的时候写入，避免每次重启都把用户改过的值冲掉
+  if (BASE_URL_ENV && !getSetting(SETTING_KEYS.siteBaseUrl)) {
+    setSetting(SETTING_KEYS.siteBaseUrl, BASE_URL_ENV.replace(/\/+$/, ''));
+    console.log(`[msubga] 对外访问地址: ${BASE_URL_ENV}`);
   }
 }
 

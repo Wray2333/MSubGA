@@ -82,7 +82,7 @@ export function SubscriptionEditor({
       onOpenChange={(open) => {
         if (!open) onClose();
       }}
-      wide
+      size="lg"
       title={draft.id ? '编辑订阅' : '新建订阅'}
       footer={
         <>
@@ -99,7 +99,7 @@ export function SubscriptionEditor({
       }
     >
       <div className="space-y-4">
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid gap-3 sm:grid-cols-3">
           <Field label="订阅名称">
             <Input value={draft.name} onChange={(event) => onChange({ ...draft, name: event.target.value })} />
           </Field>
@@ -289,7 +289,7 @@ export function SubscriptionEditor({
 
         <div className="rounded-lg border border-border p-3">
           <h3 className="mb-2 text-sm font-medium">输出选项</h3>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid gap-3 sm:grid-cols-2">
             <Field label="节点名前缀（可选）">
               <Input
                 value={draft.options.namePrefix ?? ''}

@@ -17,8 +17,16 @@ export const MIGRATIONS_DIR = join(here, '..', 'drizzle');
 /** 打包后前端静态文件的位置 */
 export const WEB_DIST_DIR = join(REPO_ROOT, 'packages', 'web', 'dist');
 
-export const PORT = Number.parseInt(process.env['PORT'] ?? '3000', 10);
+export const PORT = Number.parseInt(process.env['PORT'] ?? '27981', 10);
 export const HOST = process.env['HOST'] ?? '0.0.0.0';
+
+/**
+ * 对外访问地址，订阅链接按它拼。
+ * 跑在反代后面时必须设置：服务自己只看得到 http://127.0.0.1:27981，
+ * 拼出来的链接客户端根本访问不到。
+ * 设置页里改过之后以库里的为准，这个环境变量只用于首次写入。
+ */
+export const BASE_URL_ENV = process.env['MSUBGA_BASE_URL'] ?? '';
 
 /** 首次启动时用来设置管理员密码；之后改密码走设置页，这个环境变量就不再生效 */
 export const INITIAL_PASSWORD = process.env['MSUBGA_PASSWORD'] ?? '';

@@ -30,17 +30,7 @@
 
 ## 快速开始
 
-### Docker
-
-```bash
-MSUBGA_PASSWORD=你的密码 docker compose up -d
-```
-
-打开 http://localhost:3000 。
-
-### 本地跑
-
-需要 Node 20.11+。
+需要 Node 20.11+。服务默认监听 **27981**。
 
 ```bash
 npm install
@@ -48,24 +38,78 @@ npm run build
 MSUBGA_PASSWORD=你的密码 npm start
 ```
 
-开发模式（前端 5173，后端 3000，自动转发）：
+开发模式（前端 5173，后端 27981，自动转发）：
 
 ```bash
 npm run dev
 ```
 
+## 部署到服务器
+
+仓库自带一键部署脚本。第一次先把配置准备好：
+
+```bash
+git clone <你的仓库地址> /opt/MSubGA && cd /opt/MSubGA
+cp .env.deploy.example .env.deploy && vi .env.deploy
+```
+
+之后每次更新只要一条命令，它会拉代码、装依赖、构建、重启、做健康检查：
+
+```bash
+./deploy.sh
+```
+
+其他用法：
+
+```bash
+./deploy.sh status      # 看运行状态
+./deploy.sh stop        # 停服务
+SKIP_PULL=1 ./deploy.sh # 不拉代码，只重新构建重启
+```
+
+### 配在 nginx 后面
+
+服务默认只监听 `127.0.0.1:27981`，对外由 nginx 反代。
+[deploy/nginx-msubga.conf](deploy/nginx-msubga.conf) 是一段可以直接追加的 server 块（子域名虚拟主机，
+不带 `default_server`，不影响同端口上的其他站点）：
+
+```bash
+sudo cp deploy/nginx-msubga.conf /etc/nginx/conf.d/msubga.conf
+sudo vi /etc/nginx/conf.d/msubga.conf   # 改证书路径
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+里面有两处不能省：
+
+- `proxy_set_header X-Forwarded-Proto $scheme` —— 服务端靠它判断要不要给会话 cookie 打 `Secure` 标记。少了它，HTTPS 站点的 cookie 会被当成明文连接签发。
+- `/api/latency/stream` 那段的 `proxy_buffering off` —— 测速进度是 SSE 长连接，nginx 默认会缓冲，表现就是进度条一直不动、等整批测完才跳到 100%。
+
+### 开机自启
+
+```bash
+sudo cp deploy/msubga.service /etc/systemd/system/
+sudo systemctl daemon-reload && sudo systemctl enable --now msubga
+```
+
+用了 systemd 之后，更新改成 `SKIP_START=1 ./deploy.sh && sudo systemctl restart msubga`。
+
+### Docker
+
+```bash
+MSUBGA_PASSWORD=你的密码 MSUBGA_BASE_URL=https://你的域名 docker compose up -d
+```
+
 ## 配置
 
-全部通过环境变量，见 [.env.example](.env.example)。
+全部通过环境变量，见 [.env.example](.env.example) 和 [.env.deploy.example](.env.deploy.example)。
 
 | 变量 | 说明 |
 | --- | --- |
-| `PORT` / `HOST` | 监听地址，默认 `0.0.0.0:3000` |
+| `PORT` / `HOST` | 监听地址，默认 `0.0.0.0:27981`；走反代时把 HOST 设成 `127.0.0.1` |
 | `MSUBGA_PASSWORD` | 首次启动时设置管理员密码。设置过之后就不再生效，改密码走设置页 |
+| `MSUBGA_BASE_URL` | 对外访问地址，订阅链接按它拼。**跑在反代后面时必须填**，否则链接是客户端够不着的内网地址。只在数据库里还没填过时生效 |
 | `MSUBGA_DATA_DIR` | 数据目录，默认仓库根目录下的 `data/` |
 | `MIHOMO_PATH` | 手动指定 mihomo 可执行文件；不填则在设置页点「自动下载」 |
-
-部署在反代后面时，记得在**设置 → 站点**里填「对外访问地址」，否则复制出来的订阅链接会是内网地址。
 
 ## 两个要知道的前提
 

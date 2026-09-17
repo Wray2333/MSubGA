@@ -1,10 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
-import { Boxes, KeyRound, Link2, ListTree, Settings as SettingsIcon, Shuffle } from 'lucide-react';
+import { Boxes, Link2, ListTree, Settings as SettingsIcon, Shuffle, Waypoints } from 'lucide-react';
 import { Suspense, lazy } from 'react';
 import { NavLink, Navigate, Route, Routes } from 'react-router-dom';
+import { Spinner } from './components/ui';
 import { api } from './lib/api';
 import { cn } from './lib/utils';
-import { Spinner } from './components/ui';
 import { AuthScreen } from './pages/AuthScreen';
 import { NodesPage } from './pages/Nodes';
 import { SettingsPage } from './pages/Settings';
@@ -28,29 +28,37 @@ const NAV = [
 function Layout() {
   return (
     <div className="flex h-full">
-      <aside className="flex w-48 shrink-0 flex-col border-r border-border bg-surface">
-        <div className="flex items-center gap-2 px-4 py-4">
-          <KeyRound className="h-4 w-4 text-accent" />
-          <span className="text-sm font-semibold tracking-tight">MSubGA</span>
+      <aside className="flex w-52 shrink-0 flex-col border-r border-border bg-surface/50">
+        <div className="flex items-center gap-2 px-4 pb-5 pt-5">
+          <Waypoints className="size-[18px] text-accent" />
+          <span className="text-[0.9375rem] font-semibold tracking-tight">MSubGA</span>
         </div>
-        <nav className="flex-1 space-y-0.5 px-2">
+
+        <nav className="flex-1 space-y-0.5 px-2.5">
           {NAV.map(({ to, label, icon: Icon }) => (
             <NavLink
               key={to}
               to={to}
               className={({ isActive }) =>
                 cn(
-                  'flex items-center gap-2 rounded-md px-2.5 py-1.5 text-sm transition',
-                  isActive ? 'bg-surface-2 text-fg' : 'text-muted hover:bg-surface-2 hover:text-fg',
+                  'flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm transition',
+                  isActive
+                    ? 'bg-surface-2 font-medium text-fg'
+                    : 'text-muted hover:bg-surface-2/60 hover:text-fg-2',
                 )
               }
             >
-              <Icon className="h-4 w-4" />
-              {label}
+              {({ isActive }) => (
+                <>
+                  <Icon className={cn('size-4 shrink-0', isActive ? 'text-accent' : '')} />
+                  {label}
+                </>
+              )}
             </NavLink>
           ))}
         </nav>
-        <p className="px-4 py-3 text-[11px] leading-relaxed text-muted">
+
+        <p className="px-4 pb-4 text-2xs leading-relaxed text-muted/70">
           Make subscription
           <br />
           great again

@@ -342,7 +342,75 @@ export const proxyGroupSchema = z.object({
 });
 export type ProxyGroupDef = z.infer<typeof proxyGroupSchema>;
 
-export const ruleEntrySchema = z.discriminatedUnion('type', [
+/**
+ * mihomo 支持的匹配类型。
+ * 复合规则（AND/OR/NOT/SUB-RULE）的载荷是嵌套结构，塞不进一个输入框，
+ * 留给高级模式直接写 JSON。
+ */
+export const RULE_MATCHERS = [
+  'DOMAIN',
+  'DOMAIN-SUFFIX',
+  'DOMAIN-KEYWORD',
+  'DOMAIN-WILDCARD',
+  'DOMAIN-REGEX',
+  'GEOSITE',
+  'IP-CIDR',
+  'IP-CIDR6',
+  'IP-SUFFIX',
+  'IP-ASN',
+  'GEOIP',
+  'SRC-IP-CIDR',
+  'SRC-GEOIP',
+  'SRC-PORT',
+  'DST-PORT',
+  'IN-PORT',
+  'IN-TYPE',
+  'PROCESS-NAME',
+  'PROCESS-PATH',
+  'PROCESS-NAME-REGEX',
+  'NETWORK',
+  'UID',
+] as const;
+export type RuleMatcher = (typeof RULE_MATCHERS)[number];
+
+export interface RuleMatcherMeta {
+  label: string;
+  group: '域名' | 'IP' | '端口' | '来源' | '进程' | '其他';
+  placeholder: string;
+  hint: string;
+  /**
+   * 走 IP 匹配。这类规则可以带 no-resolve——不加的话内核会为每个域名
+   * 先做一次 DNS 解析才能判断，明显拖慢首包。
+   */
+  ipLike: boolean;
+}
+
+export const RULE_MATCHER_META: Record<RuleMatcher, RuleMatcherMeta> = {
+  DOMAIN: { label: '域名', group: '域名', placeholder: 'example.com', hint: '完整域名，必须一模一样', ipLike: false },
+  'DOMAIN-SUFFIX': { label: '域名后缀', group: '域名', placeholder: 'example.com', hint: '匹配它本身和所有子域名', ipLike: false },
+  'DOMAIN-KEYWORD': { label: '域名关键词', group: '域名', placeholder: 'google', hint: '域名里含这个词就算命中，范围很宽', ipLike: false },
+  'DOMAIN-WILDCARD': { label: '域名通配', group: '域名', placeholder: '*.example.*', hint: '支持 * 和 ?', ipLike: false },
+  'DOMAIN-REGEX': { label: '域名正则', group: '域名', placeholder: '^.*\\.example\\.com$', hint: '正则表达式', ipLike: false },
+  GEOSITE: { label: 'GeoSite 分类', group: '域名', placeholder: 'cn', hint: '内核自带的域名分类库，如 cn / google / netflix', ipLike: false },
+  'IP-CIDR': { label: 'IPv4 网段', group: 'IP', placeholder: '192.168.1.0/24', hint: '必须带掩码位', ipLike: true },
+  'IP-CIDR6': { label: 'IPv6 网段', group: 'IP', placeholder: '2000::/3', hint: '必须带掩码位', ipLike: true },
+  'IP-SUFFIX': { label: 'IP 后缀', group: 'IP', placeholder: '8.8.8.8/24', hint: '按后缀匹配 IP', ipLike: true },
+  'IP-ASN': { label: 'ASN 号', group: 'IP', placeholder: '13335', hint: '自治域号，如 Cloudflare 是 13335', ipLike: true },
+  GEOIP: { label: 'GeoIP 国家', group: 'IP', placeholder: 'CN', hint: '目标 IP 所属国家代码', ipLike: true },
+  'SRC-IP-CIDR': { label: '来源网段', group: '来源', placeholder: '192.168.1.0/24', hint: '按发起请求的设备 IP 分流', ipLike: true },
+  'SRC-GEOIP': { label: '来源 GeoIP', group: '来源', placeholder: 'CN', hint: '来源 IP 所属国家代码', ipLike: true },
+  'SRC-PORT': { label: '来源端口', group: '来源', placeholder: '8080', hint: '单个端口或 1000-2000 这样的区间', ipLike: false },
+  'DST-PORT': { label: '目标端口', group: '端口', placeholder: '443', hint: '单个端口或 1000-2000 这样的区间', ipLike: false },
+  'IN-PORT': { label: '入站端口', group: '端口', placeholder: '7890', hint: '按本机哪个监听端口进来的分流', ipLike: false },
+  'IN-TYPE': { label: '入站类型', group: '端口', placeholder: 'SOCKS/HTTP', hint: '如 SOCKS / HTTP / TUN', ipLike: false },
+  'PROCESS-NAME': { label: '进程名', group: '进程', placeholder: 'chrome.exe', hint: '按发起连接的程序分流', ipLike: false },
+  'PROCESS-PATH': { label: '进程路径', group: '进程', placeholder: 'C:\\Program Files\\app.exe', hint: '可执行文件的完整路径', ipLike: false },
+  'PROCESS-NAME-REGEX': { label: '进程名正则', group: '进程', placeholder: '.*chrome.*', hint: '正则表达式', ipLike: false },
+  NETWORK: { label: '传输层协议', group: '其他', placeholder: 'udp', hint: '只能填 tcp 或 udp', ipLike: false },
+  UID: { label: 'Linux UID', group: '其他', placeholder: '1000', hint: '只在 Linux/Android 上有效', ipLike: false },
+};
+
+const ruleEntryVariants = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('ruleset'),
     rulesetId: z.string(),
@@ -351,25 +419,49 @@ export const ruleEntrySchema = z.discriminatedUnion('type', [
   }),
   z.object({
     type: z.literal('literal'),
-    /** 完整的规则前半段，如 "DOMAIN-SUFFIX,example.com" */
-    value: z.string().min(1),
+    matcher: z.enum(RULE_MATCHERS),
+    payload: z.string().min(1),
     target: z.string(),
     noResolve: z.boolean().optional(),
-  }),
-  z.object({
-    type: z.literal('geoip'),
-    value: z.string().min(1),
-    target: z.string(),
-    noResolve: z.boolean().optional(),
-  }),
-  z.object({
-    type: z.literal('geosite'),
-    value: z.string().min(1),
-    target: z.string(),
   }),
   z.object({ type: z.literal('match'), target: z.string() }),
 ]);
-export type RuleEntry = z.infer<typeof ruleEntrySchema>;
+
+/**
+ * 兼容早期把整条规则塞在一个 value 字符串里的写法，以及独立的 geoip/geosite 类型。
+ * 老库里存过的模板不该因为这次结构调整就加载不了。
+ */
+function upgradeLegacyRule(input: unknown): unknown {
+  if (typeof input !== 'object' || input === null) return input;
+  const rule = input as Record<string, unknown>;
+
+  if (rule['type'] === 'geoip' || rule['type'] === 'geosite') {
+    return {
+      type: 'literal',
+      matcher: rule['type'] === 'geoip' ? 'GEOIP' : 'GEOSITE',
+      payload: String(rule['value'] ?? ''),
+      target: rule['target'],
+      noResolve: rule['noResolve'],
+    };
+  }
+
+  if (rule['type'] === 'literal' && typeof rule['value'] === 'string' && rule['matcher'] === undefined) {
+    const comma = rule['value'].indexOf(',');
+    const matcher = comma === -1 ? rule['value'] : rule['value'].slice(0, comma);
+    const payload = comma === -1 ? '' : rule['value'].slice(comma + 1);
+    return { type: 'literal', matcher, payload, target: rule['target'], noResolve: rule['noResolve'] };
+  }
+
+  return input;
+}
+
+export const ruleEntrySchema = z.preprocess(upgradeLegacyRule, ruleEntryVariants);
+export type RuleEntry = z.infer<typeof ruleEntryVariants>;
+
+/** 拼成 Clash 规则行的前半段，如 `DOMAIN-SUFFIX,example.com` */
+export function ruleHead(rule: Extract<RuleEntry, { type: 'literal' }>): string {
+  return `${rule.matcher},${rule.payload}`;
+}
 
 export const profileGeneralSchema = z.object({
   mode: z.enum(['rule', 'global', 'direct']).default('rule'),

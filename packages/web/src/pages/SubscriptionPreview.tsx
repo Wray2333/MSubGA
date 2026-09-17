@@ -35,7 +35,7 @@ export function SubscriptionPreview({
       onOpenChange={(open) => {
         if (!open) onClose();
       }}
-      wide
+      size="lg"
       title={`预览：${subscription.name}`}
       description="这就是客户端拉到的原文"
       footer={

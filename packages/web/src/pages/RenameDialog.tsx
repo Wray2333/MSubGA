@@ -56,7 +56,7 @@ export function RenameDialog({
     <Modal
       open={open}
       onOpenChange={onOpenChange}
-      wide
+      size="lg"
       title={`批量改名（选中 ${nodes.length} 个）`}
       description="先做文本替换，再加前后缀。改名不影响节点指纹，重复导入依然认得出是同一个节点。"
       footer={
@@ -74,7 +74,7 @@ export function RenameDialog({
       }
     >
       <div className="space-y-3">
-        <div className="grid grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <Field label="查找" hint="纯文本，不是正则">
             <Input value={find} onChange={(event) => setFind(event.target.value)} />
           </Field>

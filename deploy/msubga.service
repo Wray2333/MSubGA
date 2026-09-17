@@ -1,0 +1,34 @@
+# 开机自启与崩溃自动重启。
+#
+#   sudo cp deploy/msubga.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now msubga
+#
+# 用了 systemd 之后就别再用 deploy.sh 启动了，改成：
+#   SKIP_START=1 ./deploy.sh && sudo systemctl restart msubga
+
+[Unit]
+Description=MSubGA - 节点管理与订阅生成
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/MSubGA
+# 与 deploy.sh 共用同一份配置
+EnvironmentFile=-/opt/MSubGA/.env.deploy
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/env node packages/server/dist/index.js
+Restart=on-failure
+RestartSec=3
+
+# 数据库和内核都写在 data/ 下，除此之外不需要写权限
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+
+StandardOutput=append:/opt/MSubGA/msubga.log
+StandardError=append:/opt/MSubGA/msubga.log
+
+[Install]
+WantedBy=multi-user.target

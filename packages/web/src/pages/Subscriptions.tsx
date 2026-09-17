@@ -3,7 +3,7 @@ import { Copy, Eye, Plus, RefreshCw, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { QrButton } from '../components/QrButton';
-import { Badge, Button, Empty, Spinner } from '../components/ui';
+import { Chip, Button, Empty, Spinner } from '../components/ui';
 import { api, type Subscription } from '../lib/api';
 import { copyText, formatTime } from '../lib/utils';
 import { SubscriptionEditor, type SubscriptionDraft } from './SubscriptionEditor';
@@ -85,20 +85,20 @@ export function SubscriptionsPage() {
       </header>
 
       {subscriptions.length === 0 ? (
-        <Empty>还没有订阅。先在节点池里导入节点，再来这里生成订阅链接。</Empty>
+        <Empty title="还没有订阅">先在节点池里导入节点，再来这里生成订阅链接</Empty>
       ) : (
         <div className="space-y-2">
           {subscriptions.map((subscription) => (
-            <div key={subscription.id} className="rounded-lg border border-border bg-surface p-3">
+            <div key={subscription.id} className="group rounded-xl border border-border bg-surface p-3.5">
               <div className="flex flex-wrap items-center gap-2">
-                <h3 className="text-sm font-medium">{subscription.name}</h3>
-                {!subscription.enabled && <Badge className="bg-danger/15 text-danger">已停用</Badge>}
-                <Badge className="bg-surface-2 text-muted">{FORMAT_LABEL[subscription.format]}</Badge>
-                <Badge className="bg-surface-2 text-muted">{profileName(subscription.profileId)}</Badge>
-                <Badge className="bg-surface-2 text-muted">{subscription.nodeCount} 个节点</Badge>
-                <Badge className="bg-surface-2 text-muted">
+                <h3 className="text-[0.9375rem] font-medium">{subscription.name}</h3>
+                {!subscription.enabled && <Chip className="bg-danger/15 text-danger">已停用</Chip>}
+                <Chip className="bg-surface-2 text-muted">{FORMAT_LABEL[subscription.format]}</Chip>
+                <Chip className="bg-surface-2 text-muted">{profileName(subscription.profileId)}</Chip>
+                <Chip className="bg-surface-2 text-muted">{subscription.nodeCount} 个节点</Chip>
+                <Chip className="bg-surface-2 text-muted">
                   {subscription.selection.mode === 'manual' ? '手动勾选' : '动态筛选'}
-                </Badge>
+                </Chip>
 
                 <div className="ml-auto flex items-center gap-1">
                   <Button size="sm" onClick={() => setPreviewing(subscription)}>
@@ -135,11 +135,12 @@ export function SubscriptionsPage() {
                   <Button
                     size="sm"
                     variant="danger"
+                    className="opacity-0 transition group-hover:opacity-100 focus-visible:opacity-100"
                     onClick={() => {
                       if (confirm(`删除订阅「${subscription.name}」？`)) remove.mutate(subscription.id);
                     }}
                   >
-                    <Trash2 className="h-3 w-3" />
+                    <Trash2 className="size-3" />
                   </Button>
                 </div>
               </div>

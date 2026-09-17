@@ -1,5 +1,6 @@
 import { stringify } from 'yaml';
 import { nodeToClash, type ClashProxy } from '../protocols/index.js';
+import { RULE_MATCHER_META } from '../types.js';
 import type {
   ProxyConfig,
   RuleEntry,
@@ -179,12 +180,13 @@ function renderRule(
   switch (rule.type) {
     case 'match':
       return [`MATCH,${target}`];
-    case 'literal':
-      return [`${rule.value},${target}${rule.noResolve ? ',no-resolve' : ''}`];
-    case 'geoip':
-      return [`GEOIP,${rule.value},${target}${rule.noResolve === false ? '' : ',no-resolve'}`];
-    case 'geosite':
-      return [`GEOSITE,${rule.value},${target}`];
+    case 'literal': {
+      // no-resolve 只对 IP 类规则有意义，别的类型带上它内核会报错。
+      // IP 类默认加，除非用户显式关掉——不加的话内核要为每个域名先做一次 DNS 解析。
+      const ipLike = RULE_MATCHER_META[rule.matcher].ipLike;
+      const noResolve = ipLike ? rule.noResolve !== false : false;
+      return [`${rule.matcher},${rule.payload},${target}${noResolve ? ',no-resolve' : ''}`];
+    }
     case 'ruleset': {
       const ruleset = rulesetById.get(rule.rulesetId);
       if (!ruleset) throw new GenerateError(`规则集 ${rule.rulesetId} 不存在`);

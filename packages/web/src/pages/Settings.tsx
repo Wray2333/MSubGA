@@ -65,11 +65,11 @@ export function SettingsPage() {
 
   return (
     <div className="max-w-3xl space-y-4 p-5">
-      <h1 className="text-base font-semibold">设置</h1>
+      <h1 className="text-xl font-semibold tracking-tight">设置</h1>
 
       <Card>
         <div className="mb-3 flex items-center gap-2">
-          <h2 className="mr-auto text-sm font-medium">mihomo 内核</h2>
+          <h2 className="mr-auto text-[0.9375rem] font-medium">mihomo 内核</h2>
           {data.mihomo.ready ? (
             <span className="flex items-center gap-1 text-xs text-ok">
               <CheckCircle2 className="h-3.5 w-3.5" />
@@ -86,7 +86,7 @@ export function SettingsPage() {
         <p className="mb-3 text-xs text-muted">
           测「真实代理延迟」和「用内核校验配置」都要它。没有内核时只能做 TCP 握手测试。
         </p>
-        <div className="flex items-end gap-2">
+        <div className="flex flex-wrap items-end gap-2">
           <Field label="可执行文件路径" hint="留空则用自动下载到 data/mihomo/bin 的那个">
             <Input
               value={mihomoPath}
@@ -103,8 +103,8 @@ export function SettingsPage() {
       </Card>
 
       <Card>
-        <h2 className="mb-3 text-sm font-medium">测速</h2>
-        <div className="grid grid-cols-3 gap-3">
+        <h2 className="mb-3 text-[0.9375rem] font-medium">测速</h2>
+        <div className="grid gap-3 sm:grid-cols-3">
           <Field label="测速 URL" hint="默认是 generate_204">
             <Input value={testUrl} onChange={(event) => setTestUrl(event.target.value)} />
           </Field>
@@ -140,7 +140,7 @@ export function SettingsPage() {
       </Card>
 
       <Card>
-        <h2 className="mb-3 text-sm font-medium">站点</h2>
+        <h2 className="mb-3 text-[0.9375rem] font-medium">站点</h2>
         <Field
           label="对外访问地址"
           hint="订阅链接按这个前缀拼。部署在反代后面时必须填，否则复制出来的链接是内网地址。"
@@ -159,11 +159,11 @@ export function SettingsPage() {
       </Card>
 
       <Card>
-        <h2 className="mb-1 text-sm font-medium">管理员密码</h2>
+        <h2 className="mb-1 text-[0.9375rem] font-medium">管理员密码</h2>
         <p className="mb-3 text-xs text-muted">
           改密码会让所有设备上的登录状态立刻失效。订阅链接不受影响。
         </p>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid gap-3 sm:grid-cols-2">
           <Field label="当前密码">
             <Input type="password" value={current} onChange={(event) => setCurrent(event.target.value)} />
           </Field>

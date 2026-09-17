@@ -20,7 +20,7 @@ FROM node:22-bookworm-slim
 
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0
-ENV PORT=3000
+ENV PORT=27981
 ENV MSUBGA_DATA_DIR=/data
 
 WORKDIR /app
@@ -41,9 +41,9 @@ COPY --from=build /app/packages/web/dist ./packages/web/dist
 
 # 数据库、mihomo 内核和它的运行时配置都落在这里，必须挂出去
 VOLUME ["/data"]
-EXPOSE 3000
+EXPOSE 27981
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s \
-  CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+  CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||27981)+'/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
 CMD ["node", "packages/server/dist/index.js"]

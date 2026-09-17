@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Copy, Lock, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { Badge, Button, Empty, Spinner } from '../components/ui';
+import { Chip, Button, Empty, Spinner } from '../components/ui';
 import { api } from '../lib/api';
 import { formatTime } from '../lib/utils';
 import { ProfileEditor, type ProfileDraft } from './ProfileEditor';
@@ -69,23 +69,23 @@ export function ProfilesPage() {
       </header>
 
       {profiles.length === 0 ? (
-        <Empty>还没有规则模板</Empty>
+        <Empty title="还没有规则模板">先复制一份内置模板，或者点右上角新建</Empty>
       ) : (
         <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
           {profiles.map((profile) => (
-            <div key={profile.id} className="flex flex-col rounded-lg border border-border bg-surface p-3">
+            <div key={profile.id} className="flex flex-col rounded-xl border border-border bg-surface p-3.5 transition hover:border-border-strong">
               <div className="mb-1 flex items-center gap-1.5">
                 {profile.builtin && <Lock className="h-3 w-3 shrink-0 text-muted" />}
-                <h3 className="truncate text-sm font-medium">{profile.name}</h3>
+                <h3 className="truncate text-[0.9375rem] font-medium">{profile.name}</h3>
               </div>
               <p className="mb-2 line-clamp-2 min-h-[2.5rem] text-xs text-muted">
                 {profile.description ?? '没有说明'}
               </p>
               <div className="mb-3 flex flex-wrap gap-1">
-                <Badge className="bg-surface-2 text-muted">
+                <Chip className="bg-surface-2 text-muted">
                   {profile.definition.groups.length} 个策略组
-                </Badge>
-                <Badge className="bg-surface-2 text-muted">{profile.definition.rules.length} 条规则</Badge>
+                </Chip>
+                <Chip className="bg-surface-2 text-muted">{profile.definition.rules.length} 条规则</Chip>
               </div>
               <div className="mt-auto flex items-center gap-1">
                 <span className="mr-auto text-[11px] text-muted">{formatTime(profile.updatedAt)}</span>

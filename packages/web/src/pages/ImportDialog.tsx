@@ -86,7 +86,7 @@ export function ImportDialog({
         if (!next) reset();
         onOpenChange(next);
       }}
-      wide
+      size="lg"
       title="导入节点"
       description="协议链接、host:port:user:pass 纯文本、整段 base64 都可以混在一起粘"
       footer={
@@ -122,7 +122,7 @@ export function ImportDialog({
             placeholder={PLACEHOLDER}
             onChange={(event) => setText(event.target.value)}
           />
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid gap-3 sm:grid-cols-2">
             <Field label="纯文本按哪种协议解析" hint="只影响没有协议前缀的行">
               <Select value={defaultPlainType} onChange={(e) => setDefaultPlainType(e.target.value)}>
                 <option value="socks5">SOCKS5</option>

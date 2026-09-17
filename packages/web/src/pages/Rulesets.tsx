@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Copy, Lock, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { Badge, Button, Empty, Field, Input, Modal, Select, Spinner } from '../components/ui';
+import { Chip, Button, Empty, Field, Input, Modal, Select, Spinner } from '../components/ui';
 import { api, type Ruleset } from '../lib/api';
 
 type Draft = Partial<Ruleset> & { name: string; kind: 'remote' | 'inline' };
@@ -99,13 +99,13 @@ export function RulesetsPage() {
       </header>
 
       {rulesets.length === 0 ? (
-        <Empty>还没有规则集</Empty>
+        <Empty title="还没有规则集">内置规则集会随首次启动自动写入</Empty>
       ) : (
         <div className="overflow-hidden rounded-lg border border-border">
           <table className="w-full text-sm">
-            <thead className="bg-surface text-xs text-muted">
+            <thead className="border-b border-border bg-surface/60 text-2xs text-muted">
               <tr>
-                <th className="px-3 py-2 text-left">名称</th>
+                <th className="px-3 py-2.5 text-left font-medium">名称</th>
                 <th className="w-20 px-2 py-2 text-left">来源</th>
                 <th className="w-24 px-2 py-2 text-left">行为</th>
                 <th className="px-2 py-2 text-left">地址 / 内容</th>
@@ -117,17 +117,17 @@ export function RulesetsPage() {
                 <tr key={ruleset.id} className="border-t border-border hover:bg-surface/60">
                   <td className="px-3 py-2">
                     <div className="flex items-center gap-1.5">
-                      {ruleset.builtin && <Lock className="h-3 w-3 shrink-0 text-muted" />}
-                      <span>{ruleset.name}</span>
+                      {ruleset.builtin && <Lock className="size-3 shrink-0 text-muted" />}
+                      <span className="text-[0.9375rem]">{ruleset.name}</span>
                     </div>
                     {ruleset.description && (
-                      <div className="text-xs text-muted">{ruleset.description}</div>
+                      <div className="mt-0.5 text-2xs text-muted">{ruleset.description}</div>
                     )}
                   </td>
                   <td className="px-2 py-2">
-                    <Badge className="bg-surface-2 text-muted">
+                    <Chip className="bg-surface-2 text-muted">
                       {ruleset.kind === 'remote' ? '远程' : '内联'}
-                    </Badge>
+                    </Chip>
                   </td>
                   <td className="px-2 py-2 text-xs text-muted">
                     {ruleset.behavior} / {ruleset.format}
@@ -183,7 +183,7 @@ export function RulesetsPage() {
             setEditingId(null);
           }
         }}
-        wide
+        size="lg"
         title={editingId ? '编辑规则集' : '新建规则集'}
         footer={
           <>
@@ -201,7 +201,7 @@ export function RulesetsPage() {
       >
         {draft && (
           <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid gap-3 sm:grid-cols-2">
               <Field label="名称" hint="这个名字会直接成为 Clash 里 rule-provider 的键">
                 <Input
                   value={draft.name}
@@ -216,7 +216,7 @@ export function RulesetsPage() {
               </Field>
             </div>
 
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid gap-3 sm:grid-cols-3">
               <Field label="来源">
                 <Select
                   value={draft.kind}

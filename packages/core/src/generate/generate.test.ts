@@ -3,11 +3,12 @@ import { parse } from 'yaml';
 import { BUILTIN_PROFILES, BUILTIN_RULESETS } from '../presets/index.js';
 import { parseNodeUri } from '../protocols/index.js';
 import { base64Decode } from '../protocols/shared.js';
+import { ruleEntrySchema } from '../types.js';
 import type { RuleProfileDefinition, RulesetRecord, SubscriptionOptions } from '../types.js';
 import { generateBase64Subscription } from './base64.js';
 import { generateClashConfig } from './clash.js';
 import type { EvaluableNode } from './select.js';
-import { hasErrors, validateProfile } from './validate.js';
+import { hasErrors, validateProfile, validateRulePayload } from './validate.js';
 
 const defaultOptions: SubscriptionOptions = {
   sortByDelay: false,
@@ -135,7 +136,7 @@ describe('校验器', () => {
       minimalProfile({
         rules: [
           { type: 'match', target: 'PROXY' },
-          { type: 'literal', value: 'DOMAIN,a.com', target: 'PROXY' },
+          { type: 'literal', matcher: 'DOMAIN', payload: 'a.com', target: 'PROXY' },
         ],
       }),
       { rulesetIds },
@@ -411,5 +412,120 @@ describe('rule-provider 的键', () => {
       }).yaml,
     ) as Record<string, any>;
     expect(Object.keys(doc['rule-providers'])).toEqual(['同名', '同名 (b)']);
+  });
+});
+
+describe('规则的 matcher + payload 结构', () => {
+  const withRules = (rules: RuleProfileDefinition['rules']) =>
+    parse(
+      generateClashConfig({
+        nodes: sampleNodes,
+        profile: minimalProfile({ rules }),
+        rulesets,
+        options: defaultOptions,
+      }).yaml,
+    ) as Record<string, any>;
+
+  it('拼成 匹配类型,内容,目标', () => {
+    const doc = withRules([
+      { type: 'literal', matcher: 'DOMAIN-SUFFIX', payload: 'example.com', target: 'PROXY' },
+      { type: 'match', target: 'PROXY' },
+    ]);
+    expect(doc['rules'][0]).toBe('DOMAIN-SUFFIX,example.com,代理');
+  });
+
+  it('IP 类规则默认补 no-resolve，非 IP 类一定不补', () => {
+    const doc = withRules([
+      { type: 'literal', matcher: 'GEOIP', payload: 'CN', target: 'PROXY' },
+      { type: 'literal', matcher: 'IP-CIDR', payload: '10.0.0.0/8', target: 'PROXY' },
+      { type: 'literal', matcher: 'GEOSITE', payload: 'cn', target: 'PROXY' },
+      { type: 'literal', matcher: 'DOMAIN', payload: 'a.com', target: 'PROXY' },
+      { type: 'match', target: 'PROXY' },
+    ]);
+    expect(doc['rules'][0]).toBe('GEOIP,CN,代理,no-resolve');
+    expect(doc['rules'][1]).toBe('IP-CIDR,10.0.0.0/8,代理,no-resolve');
+    // GEOSITE 和 DOMAIN 是域名匹配，带 no-resolve 内核会报错
+    expect(doc['rules'][2]).toBe('GEOSITE,cn,代理');
+    expect(doc['rules'][3]).toBe('DOMAIN,a.com,代理');
+  });
+
+  it('IP 类规则可以显式关掉 no-resolve', () => {
+    const doc = withRules([
+      { type: 'literal', matcher: 'GEOIP', payload: 'CN', target: 'PROXY', noResolve: false },
+      { type: 'match', target: 'PROXY' },
+    ]);
+    expect(doc['rules'][0]).toBe('GEOIP,CN,代理');
+  });
+});
+
+describe('老结构的规则要能继续加载', () => {
+  it('把 value 字符串拆成 matcher + payload', () => {
+    const parsed = ruleEntrySchema.parse({
+      type: 'literal',
+      value: 'DOMAIN-SUFFIX,example.com',
+      target: 'PROXY',
+    });
+    expect(parsed).toEqual({
+      type: 'literal',
+      matcher: 'DOMAIN-SUFFIX',
+      payload: 'example.com',
+      target: 'PROXY',
+    });
+  });
+
+  it('独立的 geoip / geosite 类型折叠成 matcher', () => {
+    expect(ruleEntrySchema.parse({ type: 'geoip', value: 'CN', target: 'X' })).toMatchObject({
+      type: 'literal',
+      matcher: 'GEOIP',
+      payload: 'CN',
+    });
+    expect(ruleEntrySchema.parse({ type: 'geosite', value: 'cn', target: 'X' })).toMatchObject({
+      type: 'literal',
+      matcher: 'GEOSITE',
+      payload: 'cn',
+    });
+  });
+});
+
+describe('规则内容格式校验', () => {
+  it.each([
+    ['DOMAIN-SUFFIX', 'example.com', null],
+    ['DOMAIN-SUFFIX', 'nodots', '域名至少要有一个点'],
+    ['IP-CIDR', '10.0.0.0/8', null],
+    ['IP-CIDR', '10.0.0.0', '要带掩码位，例如 192.168.1.0/24'],
+    ['GEOIP', 'CN', null],
+    ['GEOIP', '86', '国家代码是两位字母，如 CN'],
+    ['DST-PORT', '443', null],
+    ['DST-PORT', '1000-2000', null],
+    ['DST-PORT', '2000-1000', '区间的起始值比结束值大'],
+    ['DST-PORT', '70000', '端口要在 1-65535 之间'],
+    ['NETWORK', 'udp', null],
+    ['NETWORK', 'quic', '只能填 tcp 或 udp'],
+    ['IP-ASN', '13335', null],
+    ['IP-ASN', 'AS13335', 'ASN 只能是数字'],
+  ] as const)('%s / %s', (matcher, payload, expected) => {
+    expect(validateRulePayload(matcher, payload)).toBe(expected);
+  });
+
+  it('内容里带逗号要拦住——它会把规则行切错位', () => {
+    expect(validateRulePayload('DOMAIN', 'a.com,b.com')).toMatch(/逗号/);
+  });
+
+  it('正则写错要报出来', () => {
+    expect(validateRulePayload('DOMAIN-REGEX', '[unclosed')).toMatch(/正则不合法/);
+    expect(validateRulePayload('DOMAIN-REGEX', '^.*\.example\.com$')).toBeNull();
+  });
+
+  it('格式错的规则会让整个模板校验不通过', () => {
+    const issues = validateProfile(
+      minimalProfile({
+        rules: [
+          { type: 'literal', matcher: 'NETWORK', payload: 'quic', target: 'PROXY' },
+          { type: 'match', target: 'PROXY' },
+        ],
+      }),
+      { rulesetIds },
+    );
+    expect(issues.some((issue) => issue.message.includes('只能填 tcp 或 udp'))).toBe(true);
   });
 });

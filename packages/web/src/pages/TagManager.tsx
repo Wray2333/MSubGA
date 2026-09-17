@@ -89,7 +89,7 @@ export function TagManager({
         </form>
 
         {tags.length === 0 ? (
-          <Empty>还没有标签</Empty>
+          <Empty title="还没有标签">标签用来给节点分组，订阅可以按标签动态筛选</Empty>
         ) : (
           <ul className="space-y-1">
             {tags.map((tag) => (

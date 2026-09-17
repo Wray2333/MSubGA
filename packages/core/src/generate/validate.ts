@@ -1,4 +1,4 @@
-import { BUILTIN_OUTBOUNDS, type RuleProfileDefinition } from '../types.js';
+import { BUILTIN_OUTBOUNDS, RULE_MATCHER_META, type RuleMatcher, type RuleProfileDefinition } from '../types.js';
 import { selectNodes, type EvaluableNode } from './select.js';
 
 export interface ValidationIssue {
@@ -115,6 +115,16 @@ export function validateProfile(
         message: `引用了已被删除的规则集: ${rule.rulesetId}`,
       });
     }
+    if (rule.type === 'literal') {
+      const problem = validateRulePayload(rule.matcher, rule.payload);
+      if (problem) {
+        issues.push({
+          level: 'error',
+          path,
+          message: `${RULE_MATCHER_META[rule.matcher].label}：${problem}`,
+        });
+      }
+    }
     if (rule.type === 'match') matchIndexes.push(index);
   });
 
@@ -189,4 +199,73 @@ export function hasErrors(issues: readonly ValidationIssue[]): boolean {
 
 export function formatIssues(issues: readonly ValidationIssue[]): string {
   return issues.map((issue) => `[${issue.level}] ${issue.path}: ${issue.message}`).join('\n');
+}
+
+/* -------------------------------------------------------------------------- */
+/*                              规则内容的格式校验                               */
+/* -------------------------------------------------------------------------- */
+
+const PORT_RE = /^\d{1,5}(-\d{1,5})?$/;
+const ASN_RE = /^\d+$/;
+const COUNTRY_RE = /^[A-Za-z]{2,}$/;
+
+/**
+ * 校验单条规则的内容写得对不对。
+ * 编辑器里即时提示用，生成配置前也再跑一遍——这些格式错内核是会直接拒绝加载整份配置的，
+ * 与其让用户在客户端那边看到一句看不懂的报错，不如在这里就说清楚。
+ * 返回 null 表示没问题。
+ */
+export function validateRulePayload(matcher: RuleMatcher, payload: string): string | null {
+  const value = payload.trim();
+  if (!value) return '内容不能为空';
+  if (value.includes(',')) return '内容里不能有逗号，规则行是按逗号分段的';
+
+  switch (matcher) {
+    case 'DOMAIN':
+    case 'DOMAIN-SUFFIX':
+      if (!/^[a-zA-Z0-9.*_-]+$/.test(value)) return '看起来不像域名';
+      if (!value.includes('.')) return '域名至少要有一个点';
+      return null;
+
+    case 'DOMAIN-REGEX':
+    case 'PROCESS-NAME-REGEX':
+      try {
+        new RegExp(value);
+        return null;
+      } catch (error) {
+        return `正则不合法：${(error as Error).message}`;
+      }
+
+    case 'IP-CIDR':
+    case 'IP-CIDR6':
+    case 'SRC-IP-CIDR':
+      if (!value.includes('/')) return '要带掩码位，例如 192.168.1.0/24';
+      return null;
+
+    case 'IP-ASN':
+      return ASN_RE.test(value) ? null : 'ASN 只能是数字';
+
+    case 'GEOIP':
+    case 'SRC-GEOIP':
+      return COUNTRY_RE.test(value) ? null : '国家代码是两位字母，如 CN';
+
+    case 'SRC-PORT':
+    case 'DST-PORT':
+    case 'IN-PORT': {
+      if (!PORT_RE.test(value)) return '填单个端口或 1000-2000 这样的区间';
+      const parts = value.split('-').map((part) => Number.parseInt(part, 10));
+      if (parts.some((port) => port < 1 || port > 65535)) return '端口要在 1-65535 之间';
+      if (parts.length === 2 && parts[0]! > parts[1]!) return '区间的起始值比结束值大';
+      return null;
+    }
+
+    case 'NETWORK':
+      return value === 'tcp' || value === 'udp' ? null : '只能填 tcp 或 udp';
+
+    case 'UID':
+      return ASN_RE.test(value) ? null : 'UID 只能是数字';
+
+    default:
+      return null;
+  }
 }

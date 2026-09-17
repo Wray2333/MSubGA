@@ -1,16 +1,27 @@
 @import 'tailwindcss';
 
 @theme {
-  --color-bg: oklch(0.145 0 0);
-  --color-surface: oklch(0.205 0 0);
-  --color-surface-2: oklch(0.25 0 0);
-  --color-border: oklch(0.32 0 0);
-  --color-fg: oklch(0.96 0 0);
-  --color-muted: oklch(0.68 0 0);
-  --color-accent: oklch(0.7 0.16 250);
-  --color-danger: oklch(0.65 0.2 25);
-  --color-ok: oklch(0.72 0.17 150);
-  --color-warn: oklch(0.78 0.16 80);
+  /* 中性色阶：从背景到前景，每一档都要能明显区分，否则边框和卡片会糊成一片 */
+  --color-bg: oklch(0.165 0.008 265);
+  --color-surface: oklch(0.205 0.009 265);
+  --color-surface-2: oklch(0.248 0.01 265);
+  --color-border: oklch(0.285 0.01 265);
+  --color-border-strong: oklch(0.38 0.012 265);
+
+  /* 文字三档：主要 / 次要 / 弱化。层级靠颜色分，不全靠字号 */
+  --color-fg: oklch(0.97 0 0);
+  --color-fg-2: oklch(0.79 0.004 265);
+  --color-muted: oklch(0.61 0.008 265);
+
+  --color-accent: oklch(0.72 0.15 250);
+  --color-accent-fg: oklch(0.18 0.03 250);
+  --color-danger: oklch(0.68 0.19 25);
+  --color-ok: oklch(0.75 0.16 155);
+  --color-warn: oklch(0.8 0.15 80);
+
+  /* 字号：14 是正文，重要的往上走一档，辅助信息往下走 */
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: 1rem;
 }
 
 html,
@@ -22,18 +33,52 @@ body,
 body {
   background: var(--color-bg);
   color: var(--color-fg);
-  font-family: ui-sans-serif, system-ui, 'PingFang SC', 'Microsoft YaHei', sans-serif;
-  font-size: 14px;
+  font-family:
+    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+code,
+pre,
+.font-mono {
+  font-family: ui-monospace, 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
+  font-feature-settings: 'liga' 0;
+}
+
+/* 数字等宽，表格里的延迟值才不会左右跳动 */
+.tabular {
+  font-variant-numeric: tabular-nums;
 }
 
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 9px;
+  height: 9px;
 }
 ::-webkit-scrollbar-thumb {
   background: var(--color-border);
-  border-radius: 5px;
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-border-strong);
 }
 ::-webkit-scrollbar-track {
   background: transparent;
+}
+
+/* 键盘焦点要看得见，鼠标点击不要出现焦点框 */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }

@@ -1,11 +1,20 @@
 import { NODE_TYPES } from '@msubga/core';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Download, Gauge, PenLine, Tags, Trash2 } from 'lucide-react';
+import { Download, Gauge, PenLine, Power, PowerOff, Tags, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { Badge, Button, Checkbox, Empty, Input, Select, Spinner } from '../components/ui';
+import {
+  Button,
+  Checkbox,
+  Chip,
+  Empty,
+  Input,
+  PageHeader,
+  Select,
+  Spinner,
+} from '../components/ui';
 import { useLatencyStream } from '../hooks/useLatencyStream';
-import { api, type NodeItem } from '../lib/api';
+import { api, type NodeItem, type Tag } from '../lib/api';
 import { STATUS_LABEL, cn, delayTone, formatTime } from '../lib/utils';
 import { ImportDialog } from './ImportDialog';
 import { RenameDialog } from './RenameDialog';
@@ -13,11 +22,12 @@ import { TagManager } from './TagManager';
 
 type TestMethod = 'proxy' | 'tcp' | 'auto';
 
-const METHOD_HINT: Record<TestMethod, string> = {
-  proxy: '走内核实际连一次，能测出节点是否真的可用',
-  auto: '先 TCP 粗筛掉不可达的，再对活着的走内核，省时间',
-  tcp: '只做 TCP 握手，快但只能说明服务器可达',
-};
+/** 说明直接写进选项里，省掉界面上常驻的一行解释文字 */
+const METHODS: { value: TestMethod; label: string }[] = [
+  { value: 'proxy', label: '内核真实延迟 · 最准' },
+  { value: 'auto', label: '先粗筛再精测 · 最快' },
+  { value: 'tcp', label: '仅 TCP 握手 · 只测可达' },
+];
 
 export function NodesPage() {
   const queryClient = useQueryClient();
@@ -56,13 +66,15 @@ export function NodesPage() {
 
   const selectedIds = [...selected].filter((id) => nodes.some((node) => node.id === id));
   const allVisibleSelected = visible.length > 0 && visible.every((node) => selected.has(node.id));
+  const filtered = visible.length !== nodes.length;
 
   const invalidate = () => void queryClient.invalidateQueries({ queryKey: ['nodes'] });
+  const onError = (error: Error) => toast.error(error.message);
 
   const rename = useMutation({
     mutationFn: ({ id, name }: { id: string; name: string }) => api.nodes.update(id, { name }),
     onSuccess: invalidate,
-    onError: (error: Error) => toast.error(error.message),
+    onError,
   });
 
   const bulkDelete = useMutation({
@@ -72,18 +84,18 @@ export function NodesPage() {
       setSelected(new Set());
       invalidate();
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError,
   });
 
   const toggleEnabled = useMutation({
     mutationFn: ({ ids, enabled }: { ids: string[]; enabled: boolean }) => api.nodes.bulkEnabled(ids, enabled),
     onSuccess: invalidate,
-    onError: (error: Error) => toast.error(error.message),
+    onError,
   });
 
   const startTest = useMutation({
     mutationFn: (ids?: string[]) => api.latency.test(ids?.length ? { nodeIds: ids, method } : { method }),
-    onError: (error: Error) => toast.error(error.message),
+    onError,
   });
 
   const toggle = (id: string) =>
@@ -105,24 +117,22 @@ export function NodesPage() {
   if (isLoading) return <Spinner />;
 
   return (
-    <div className="space-y-3 p-5">
-      <header className="flex flex-wrap items-center gap-2">
-        <h1 className="mr-auto text-base font-semibold">
-          节点池
-          <span className="ml-2 text-xs font-normal text-muted">
-            共 {nodes.length} 个{visible.length !== nodes.length ? `，筛出 ${visible.length} 个` : ''}
-          </span>
-        </h1>
-
+    <div className="space-y-4 p-6">
+      <PageHeader
+        title="节点池"
+        count={filtered ? `${visible.length} / ${nodes.length}` : `${nodes.length} 个`}
+        subtitle="双击名称即可改名。测速结果会实时刷新。"
+      >
         <Select
           value={method}
-          onChange={(e) => setMethod(e.target.value as TestMethod)}
-          title={METHOD_HINT[method]}
-          className="w-36"
+          onChange={(event) => setMethod(event.target.value as TestMethod)}
+          className="w-44"
         >
-          <option value="proxy">内核真实延迟</option>
-          <option value="auto">先粗筛再精测</option>
-          <option value="tcp">仅 TCP 握手</option>
+          {METHODS.map((item) => (
+            <option key={item.value} value={item.value}>
+              {item.label}
+            </option>
+          ))}
         </Select>
         <Button
           variant="primary"
@@ -130,62 +140,95 @@ export function NodesPage() {
           disabled={nodes.length === 0}
           onClick={() => startTest.mutate(selectedIds)}
         >
-          <Gauge className="h-3.5 w-3.5" />
-          {progress ? `${progress.done}/${progress.total}` : selectedIds.length ? `测选中 ${selectedIds.length} 个` : '测全部'}
+          <Gauge className="size-4" />
+          {progress
+            ? `测速中 ${progress.done}/${progress.total}`
+            : selectedIds.length
+              ? `测选中 ${selectedIds.length} 个`
+              : '测速'}
         </Button>
         <Button onClick={() => setTagsOpen(true)}>
-          <Tags className="h-3.5 w-3.5" />
+          <Tags className="size-4" />
           标签
         </Button>
         <Button onClick={() => setImportOpen(true)}>
-          <Download className="h-3.5 w-3.5" />
+          <Download className="size-4" />
           导入
         </Button>
-      </header>
+      </PageHeader>
 
-      <p className="text-xs text-muted">{METHOD_HINT[method]}</p>
+      {progress && (
+        <div className="h-0.5 overflow-hidden rounded-full bg-surface-2">
+          <div
+            className="h-full bg-accent transition-[width] duration-200"
+            style={{ width: `${Math.round((progress.done / Math.max(1, progress.total)) * 100)}%` }}
+          />
+        </div>
+      )}
 
-      <div className="flex flex-wrap items-center gap-2">
-        <Input
-          className="w-56"
-          placeholder="搜名称或地址"
-          value={keyword}
-          onChange={(e) => setKeyword(e.target.value)}
-        />
-        <Select className="w-28" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
-          <option value="">全部协议</option>
-          {NODE_TYPES.map((type) => (
-            <option key={type} value={type}>
-              {type}
-            </option>
-          ))}
-        </Select>
-        <Select className="w-32" value={tagFilter} onChange={(e) => setTagFilter(e.target.value)}>
-          <option value="">全部标签</option>
-          {tags.map((tag) => (
-            <option key={tag.id} value={tag.id}>
-              {tag.name}
-            </option>
-          ))}
-        </Select>
-        <Select className="w-28" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-          <option value="">全部状态</option>
-          <option value="ok">仅存活</option>
-          <option value="bad">仅失败</option>
-          <option value="untested">未测过</option>
-        </Select>
+      {nodes.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <Input
+            className="w-60"
+            placeholder="搜名称或地址"
+            value={keyword}
+            onChange={(event) => setKeyword(event.target.value)}
+          />
+          <Select className="w-28" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
+            <option value="">全部协议</option>
+            {NODE_TYPES.map((type) => (
+              <option key={type} value={type}>
+                {type}
+              </option>
+            ))}
+          </Select>
+          <Select className="w-32" value={tagFilter} onChange={(e) => setTagFilter(e.target.value)}>
+            <option value="">全部标签</option>
+            {tags.map((tag) => (
+              <option key={tag.id} value={tag.id}>
+                {tag.name}
+              </option>
+            ))}
+          </Select>
+          <Select className="w-28" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+            <option value="">全部状态</option>
+            <option value="ok">仅存活</option>
+            <option value="bad">仅失败</option>
+            <option value="untested">未测过</option>
+          </Select>
+        </div>
+      )}
 
-        {selectedIds.length > 0 && (
-          <div className="ml-auto flex items-center gap-2">
-            <span className="text-xs text-muted">选中 {selectedIds.length} 个</span>
-            <Button size="sm" onClick={() => setRenameOpen(true)}>
-              <PenLine className="h-3.5 w-3.5" />
+      {/* 批量操作条只在选中后出现，平时不占视线 */}
+      {selectedIds.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-accent/30 bg-accent/8 px-3 py-2">
+          <span className="text-xs font-medium text-accent">已选 {selectedIds.length} 个</span>
+          <button
+            type="button"
+            className="text-2xs text-muted underline-offset-2 hover:text-fg hover:underline"
+            onClick={() => setSelected(new Set())}
+          >
+            取消选择
+          </button>
+          <div className="ml-auto flex flex-wrap items-center gap-1.5">
+            <Button size="sm" variant="subtle" onClick={() => setRenameOpen(true)}>
+              <PenLine className="size-3" />
               批量改名
             </Button>
-            <Button size="sm" onClick={() => toggleEnabled.mutate({ ids: selectedIds, enabled: true })}>
+            <Button
+              size="sm"
+              variant="subtle"
+              onClick={() => toggleEnabled.mutate({ ids: selectedIds, enabled: true })}
+            >
+              <Power className="size-3" />
               启用
             </Button>
-            <Button size="sm" onClick={() => toggleEnabled.mutate({ ids: selectedIds, enabled: false })}>
+            <Button
+              size="sm"
+              variant="subtle"
+              onClick={() => toggleEnabled.mutate({ ids: selectedIds, enabled: false })}
+            >
+              <PowerOff className="size-3" />
               停用
             </Button>
             <Button
@@ -195,23 +238,26 @@ export function NodesPage() {
                 if (confirm(`确定删除选中的 ${selectedIds.length} 个节点？`)) bulkDelete.mutate(selectedIds);
               }}
             >
-              <Trash2 className="h-3.5 w-3.5" />
+              <Trash2 className="size-3" />
               删除
             </Button>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {visible.length === 0 ? (
-        <Empty>{nodes.length === 0 ? '还没有节点，点右上角「导入」粘一批进来' : '没有符合条件的节点'}</Empty>
+        <Empty title={nodes.length === 0 ? '节点池还是空的' : '没有符合条件的节点'}>
+          {nodes.length === 0 ? '点右上角「导入」，把节点链接或 host:port:user:pass 粘进来' : '换个筛选条件试试'}
+        </Empty>
       ) : (
-        <div className="overflow-hidden rounded-lg border border-border">
-          <table className="w-full text-sm">
-            <thead className="bg-surface text-xs text-muted">
-              <tr>
-                <th className="w-10 px-2 py-2">
+        <div className="overflow-hidden rounded-xl border border-border">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-border bg-surface/60 text-2xs text-muted">
+                <th className="w-10 px-3 py-2.5">
                   <Checkbox
                     checked={allVisibleSelected}
+                    title="全选当前筛选结果"
                     onChange={(event) =>
                       setSelected((previous) => {
                         const next = new Set(previous);
@@ -224,13 +270,11 @@ export function NodesPage() {
                     }
                   />
                 </th>
-                <th className="px-2 py-2 text-left">名称</th>
-                <th className="w-24 px-2 py-2 text-left">协议</th>
-                <th className="px-2 py-2 text-left">地址</th>
-                <th className="w-40 px-2 py-2 text-left">标签</th>
-                <th className="w-28 px-2 py-2 text-right">延迟</th>
-                <th className="w-28 px-2 py-2 text-left">测于</th>
-                <th className="w-12 px-2 py-2"> </th>
+                <th className="px-2 py-2.5 text-left font-medium">节点</th>
+                <th className="w-24 px-2 py-2.5 text-left font-medium">协议</th>
+                <th className="w-44 px-2 py-2.5 text-left font-medium">标签</th>
+                <th className="w-28 px-2 py-2.5 text-right font-medium">延迟</th>
+                <th className="w-16 px-2 py-2.5" />
               </tr>
             </thead>
             <tbody>
@@ -278,7 +322,7 @@ function NodeRow({
   onDelete,
 }: {
   node: NodeItem;
-  tagById: Map<string, { name: string; color: string }>;
+  tagById: Map<string, Tag>;
   checked: boolean;
   editing: string | null;
   onToggle: () => void;
@@ -288,12 +332,21 @@ function NodeRow({
   onCancelEdit: () => void;
   onDelete: () => void;
 }) {
+  const alive = node.lastStatus === 'ok';
+
   return (
-    <tr className={cn('border-t border-border hover:bg-surface/60', !node.enabled && 'opacity-45')}>
-      <td className="px-2 py-1.5 text-center">
-        <Checkbox checked={checked} onChange={onToggle} />
+    <tr
+      className={cn(
+        'group border-b border-border/60 transition last:border-0 hover:bg-surface/50',
+        !node.enabled && 'opacity-45',
+      )}
+    >
+      <td className="px-3 py-2 align-top">
+        <Checkbox checked={checked} onChange={onToggle} className="mt-1" />
       </td>
-      <td className="px-2 py-1.5">
+
+      {/* 名称是主信息，放大；地址退到第二行，小字弱化 */}
+      <td className="min-w-0 px-2 py-2">
         {editing !== null ? (
           <Input
             autoFocus
@@ -304,56 +357,82 @@ function NodeRow({
               if (event.key === 'Enter') onCommitEdit();
               if (event.key === 'Escape') onCancelEdit();
             }}
-            className="h-6 py-0"
+            className="h-7"
           />
         ) : (
-          <button
-            type="button"
-            onDoubleClick={onStartEdit}
-            title="双击改名"
-            className="max-w-[22rem] truncate text-left hover:text-accent"
-          >
-            {node.name}
-            {!node.enabled && <span className="ml-1.5 text-[11px] text-muted">已停用</span>}
-          </button>
+          <>
+            <button
+              type="button"
+              onDoubleClick={onStartEdit}
+              title="双击改名"
+              className="block max-w-full truncate text-left text-[0.9375rem] leading-tight hover:text-accent"
+            >
+              {node.name}
+            </button>
+            <div className="mt-0.5 flex items-center gap-1.5 text-2xs text-muted">
+              <span className="truncate font-mono">
+                {node.server}:{node.port}
+              </span>
+              {!node.enabled && <span className="shrink-0">· 已停用</span>}
+            </div>
+          </>
         )}
       </td>
-      <td className="px-2 py-1.5">
-        <Badge className="bg-surface-2 text-muted">{node.type}</Badge>
+
+      <td className="px-2 py-2 align-top">
+        <Chip>{node.type}</Chip>
       </td>
-      <td className="px-2 py-1.5 font-mono text-xs text-muted">
-        {node.server}:{node.port}
-      </td>
-      <td className="px-2 py-1.5">
+
+      <td className="px-2 py-2 align-top">
         <div className="flex flex-wrap gap-1">
           {node.tagIds.map((id) => {
             const tag = tagById.get(id);
             return tag ? (
-              <Badge key={id} style={{ color: tag.color, borderColor: tag.color }} className="border">
+              <Chip
+                key={id}
+                style={{ color: tag.color, backgroundColor: `${tag.color}1f` }}
+              >
                 {tag.name}
-              </Badge>
+              </Chip>
             ) : null;
           })}
         </div>
       </td>
-      <td className={cn('px-2 py-1.5 text-right font-mono', delayTone(node.lastDelayMs, node.lastStatus))}>
-        {node.lastStatus === null
-          ? '—'
-          : node.lastStatus === 'ok'
-            ? `${node.lastDelayMs} ms`
-            : (STATUS_LABEL[node.lastStatus] ?? node.lastStatus)}
+
+      {/* 延迟是这张表最该被一眼看到的数字 */}
+      <td className="px-2 py-2 text-right align-top">
+        {node.lastStatus === null ? (
+          <span className="text-xs text-muted">未测速</span>
+        ) : (
+          <>
+            <div
+              className={cn(
+                'text-[0.9375rem] leading-tight tabular',
+                delayTone(node.lastDelayMs, node.lastStatus),
+              )}
+            >
+              {alive ? node.lastDelayMs : (STATUS_LABEL[node.lastStatus] ?? node.lastStatus)}
+              {alive && <span className="ml-0.5 text-2xs text-muted">ms</span>}
+            </div>
+            <div className="mt-0.5 text-2xs text-muted">{formatTime(node.lastTestedAt)}</div>
+          </>
+        )}
       </td>
-      <td className="px-2 py-1.5 text-xs text-muted">{formatTime(node.lastTestedAt)}</td>
-      <td className="px-2 py-1.5 text-center">
+
+      {/* 删除按钮平时隐形，鼠标移到这一行才露出来 */}
+      <td className="px-2 py-2 text-center align-top">
         <button
           type="button"
-          title="删除"
+          title="删除这个节点"
           onClick={() => {
             if (confirm(`删除节点「${node.name}」？`)) onDelete();
           }}
-          className="text-muted transition hover:text-danger"
+          className={cn(
+            'rounded p-1 text-muted opacity-0 transition',
+            'group-hover:opacity-100 hover:bg-danger/12 hover:text-danger focus-visible:opacity-100',
+          )}
         >
-          <Trash2 className="h-3.5 w-3.5" />
+          <Trash2 className="size-3.5" />
         </button>
       </td>
     </tr>

@@ -5,10 +5,12 @@ services:
     container_name: msubga
     restart: unless-stopped
     ports:
-      - '3000:3000'
+      - '27981:27981'
     environment:
       # 首次启动设置管理员密码，之后改这里不会再生效
       MSUBGA_PASSWORD: ${MSUBGA_PASSWORD:-}
+      # 对外访问地址，订阅链接按它拼；跑在反代后面时必须填
+      MSUBGA_BASE_URL: ${MSUBGA_BASE_URL:-}
     volumes:
       - msubga-data:/data
 
