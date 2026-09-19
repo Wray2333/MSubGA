@@ -7,6 +7,7 @@ import { runMigrations } from './db/index.js';
 import { seedBuiltins } from './db/seed.js';
 import { isPasswordConfigured, setPassword } from './lib/auth.js';
 import { SETTING_KEYS, getSetting, setSetting } from './lib/settings.js';
+import { warmRulesetCache } from './lib/rulesetCache.js';
 import { serveWebDist } from './lib/static.js';
 import { mihomo } from './mihomo/controller.js';
 import { authRoutes } from './routes/auth.js';
@@ -33,6 +34,9 @@ function bootstrap(): void {
     setSetting(SETTING_KEYS.siteBaseUrl, BASE_URL_ENV.replace(/\/+$/, ''));
     console.log(`[msubga] 对外访问地址: ${BASE_URL_ENV}`);
   }
+
+  // 后台把规则集正文抓到本地，客户端订阅时就不用自己去 GitHub 拉了
+  warmRulesetCache();
 }
 
 const app = new Hono();

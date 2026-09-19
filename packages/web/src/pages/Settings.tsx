@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CheckCircle2, Download, LogOut, XCircle } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { Button, Card, Field, Input, PageHeader, Spinner } from '../components/ui';
+import { Button, Card, CheckLabel, Field, Input, PageHeader, Spinner } from '../components/ui';
 import { api } from '../lib/api';
 
 export function SettingsPage() {
@@ -14,6 +14,7 @@ export function SettingsPage() {
   const [concurrency, setConcurrency] = useState(16);
   const [baseUrl, setBaseUrl] = useState('');
   const [mihomoPath, setMihomoPath] = useState('');
+  const [rulesetProxy, setRulesetProxy] = useState(true);
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
 
@@ -24,6 +25,7 @@ export function SettingsPage() {
     setConcurrency(data.latency.concurrency);
     setBaseUrl(data.siteBaseUrl);
     setMihomoPath(data.mihomo.path ?? '');
+    setRulesetProxy(data.rulesetProxy);
   }, [data]);
 
   const refresh = () => void queryClient.invalidateQueries({ queryKey: ['settings'] });
@@ -152,8 +154,28 @@ export function SettingsPage() {
             onChange={(event) => setBaseUrl(event.target.value)}
           />
         </Field>
+
+        <div className="mt-4 border-t border-border pt-4">
+          <CheckLabel checked={rulesetProxy} onChange={setRulesetProxy} className="text-sm">
+            规则集由服务端中转
+          </CheckLabel>
+          <p className="mt-1.5 text-xs text-muted">
+            内置规则集挂在 raw.githubusercontent.com 上，客户端要先连上代理才够得着，
+            可规则正是用来决定怎么代理的——手机上表现就是订阅一直加载不出规则。
+            开着这项，服务端会把规则抓下来缓存，生成的配置里 rule-provider 指向本站。
+          </p>
+          {rulesetProxy && !baseUrl && (
+            <p className="mt-1.5 text-xs text-warn">
+              还没填对外访问地址，会退回用请求来源拼。跑在反代后面建议把上面那一栏填上。
+            </p>
+          )}
+        </div>
+
         <div className="mt-3">
-          <Button variant="primary" onClick={() => save.mutate({ siteBaseUrl: baseUrl })}>
+          <Button
+            variant="primary"
+            onClick={() => save.mutate({ siteBaseUrl: baseUrl, rulesetProxy })}
+          >
             保存
           </Button>
         </div>

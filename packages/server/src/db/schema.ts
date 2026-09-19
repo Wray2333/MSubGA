@@ -110,6 +110,15 @@ export const rulesets = sqliteTable('rulesets', {
   content: text('content'),
   /** 预置规则集，不可删，只能复制一份再改 */
   builtin: integer('builtin', { mode: 'boolean' }).notNull().default(false),
+  /* --- 服务端缓存的状态，正文落在 data/rulesets/ 下，不进库 --- */
+  /** 上次成功抓到正文的时间；null = 从没缓存过 */
+  cachedAt: integer('cached_at'),
+  /** 缓存正文的字节数，列表页拿来显示体积 */
+  cacheSize: integer('cache_size'),
+  /** 上游的 ETag，续期时带上 If-None-Match，命中 304 就不用重新下 */
+  cacheEtag: text('cache_etag'),
+  /** 上次抓取失败的原因；抓成功会清空 */
+  cacheError: text('cache_error'),
   createdAt: integer('created_at').notNull().default(now),
   updatedAt: integer('updated_at').notNull().default(now),
 });

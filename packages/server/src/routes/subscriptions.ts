@@ -134,7 +134,7 @@ subscriptionRoutes.get('/:id/preview', (c) => {
   const target = requested === 'base64' ? 'base64' : row.format === 'base64' ? 'base64' : 'clash';
 
   try {
-    const rendered = renderSubscription(row, target);
+    const rendered = renderSubscription(row, target, { requestOrigin: new URL(c.req.url).origin });
     return c.json({
       target: rendered.target,
       proxyCount: rendered.proxyCount,
@@ -153,7 +153,7 @@ subscriptionRoutes.post('/:id/verify', async (c) => {
   if (!row) return c.json({ error: '订阅不存在' }, 404);
 
   try {
-    const rendered = renderSubscription(row, 'clash');
+    const rendered = renderSubscription(row, 'clash', { requestOrigin: new URL(c.req.url).origin });
     return c.json(await validateConfigWithCore(rendered.body));
   } catch (error) {
     if (error instanceof GenerateError) return c.json({ ok: false, output: error.message });

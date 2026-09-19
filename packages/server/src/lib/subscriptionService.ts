@@ -2,13 +2,16 @@ import {
   GenerateError,
   generateBase64Subscription,
   generateClashConfig,
+  rulesetExtension,
   type RulesetRecord,
+  type RulesetSource,
   type SubTarget,
 } from '@msubga/core';
 import { eq } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { ruleProfiles, rulesets, type SubscriptionRow } from '../db/schema.js';
 import { resolveSubscriptionNodes } from './nodeService.js';
+import { getSetting, isRulesetProxyEnabled, SETTING_KEYS } from './settings.js';
 
 export interface RenderedSubscription {
   target: SubTarget;
@@ -46,7 +49,45 @@ function loadRulesets(): RulesetRecord[] {
     }));
 }
 
-export function renderSubscription(row: SubscriptionRow, target: SubTarget): RenderedSubscription {
+/**
+ * 把 rule-provider 的地址改写到本站的 /sub/:token/rules/ 出口。
+ *
+ * 同时把 proxy 钉成 DIRECT。这一条是必须的：内核拉 provider 也要过一遍自己的规则，
+ * 而那时候规则恰恰还没加载，请求全落到 MATCH 上被丢进代理组——正好是还没就绪的
+ * 那条链路，结果 14 个 provider 全部 pull error。客户端既然能直连下载订阅，
+ * 就一定能直连拿到规则。
+ *
+ * 拼不出绝对地址（没设站点地址、也没有请求来源）时返回 undefined，
+ * 生成器会退回规则集自己的 URL——总比写一个客户端访问不了的相对路径强。
+ */
+function rulesetUrlResolver(
+  row: SubscriptionRow,
+  requestOrigin?: string,
+): ((ruleset: RulesetRecord) => RulesetSource | undefined) | undefined {
+  if (!isRulesetProxyEnabled()) return undefined;
+
+  const base = (getSetting(SETTING_KEYS.siteBaseUrl) || requestOrigin || '').replace(/\/+$/, '');
+  if (!base) return undefined;
+
+  return (ruleset) =>
+    ruleset.kind === 'remote' && ruleset.url
+      ? {
+          url: `${base}/sub/${row.token}/rules/${encodeURIComponent(ruleset.id)}.${rulesetExtension(ruleset.format)}`,
+          proxy: 'DIRECT',
+        }
+      : undefined;
+}
+
+export interface RenderOptions {
+  /** 没设站点地址时用它兜底拼 rule-provider 的绝对地址 */
+  requestOrigin?: string;
+}
+
+export function renderSubscription(
+  row: SubscriptionRow,
+  target: SubTarget,
+  renderOptions: RenderOptions = {},
+): RenderedSubscription {
   const nodes = resolveSubscriptionNodes(row.selection);
 
   if (target === 'base64') {
@@ -73,6 +114,7 @@ export function renderSubscription(row: SubscriptionRow, target: SubTarget): Ren
     rulesets: loadRulesets(),
     options: row.options,
     title: row.name,
+    rulesetUrl: rulesetUrlResolver(row, renderOptions.requestOrigin),
   });
 
   return {

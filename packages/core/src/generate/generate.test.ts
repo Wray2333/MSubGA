@@ -596,3 +596,84 @@ describe('内置模板必须覆盖内网地址', () => {
     }
   });
 });
+
+describe('规则集地址改写 (rulesetUrl)', () => {
+  const profile = BUILTIN_PROFILES.find((p) => p.definition.rules.some((r) => r.type === 'ruleset'))!;
+
+  function providersOf(input: Partial<Parameters<typeof generateClashConfig>[0]> = {}) {
+    const { yaml } = generateClashConfig({
+      nodes: sampleNodes,
+      profile: profile.definition,
+      rulesets,
+      options: defaultOptions,
+      ...input,
+    });
+    return (parse(yaml) as Record<string, any>)['rule-providers'] as Record<string, any>;
+  }
+
+  it('不传时用规则集自己的 URL，且不写 proxy', () => {
+    const providers = providersOf();
+    const urls = Object.values(providers).map((p) => p.url as string);
+    expect(urls.length).toBeGreaterThan(0);
+    expect(urls.every((u) => u.startsWith('https://raw.githubusercontent.com/'))).toBe(true);
+    // 指向上游时不能钉 DIRECT，否则本来靠代理才拉得到的人会被改坏
+    expect(Object.values(providers).every((p) => p.proxy === undefined)).toBe(true);
+  });
+
+  it('传了就全部改写成服务端地址', () => {
+    const providers = providersOf({
+      rulesetUrl: (rs) => `https://msubga.example.com/sub/TOKEN/rules/${rs.id}.${rs.format}`,
+    });
+    const urls = Object.values(providers).map((p) => p.url as string);
+    expect(urls.length).toBeGreaterThan(0);
+    expect(urls.every((u) => u.startsWith('https://msubga.example.com/sub/TOKEN/rules/'))).toBe(true);
+    // 一个都不许漏，漏一个客户端就卡在那一条上
+    expect(urls.some((u) => u.includes('githubusercontent'))).toBe(false);
+  });
+
+  it('返回 undefined 的那个退回原 URL，其余照常改写', () => {
+    const first = rulesets.find((rs) => rs.kind === 'remote')!;
+    const providers = providersOf({
+      rulesetUrl: (rs) => (rs.id === first.id ? undefined : `https://cache.local/${rs.id}`),
+    });
+    const entry = Object.values(providers).find((p) => p.url === first.url);
+    expect(entry).toBeDefined();
+    expect(Object.values(providers).some((p) => (p.url as string).startsWith('https://cache.local/'))).toBe(
+      true,
+    );
+  });
+
+  /*
+   * 这条是实测逼出来的：只改 url 不够。内核拉 provider 也要过一遍自己的规则，
+   * 而那时规则还没加载，请求全落到 MATCH 被丢进代理组——正好是还没就绪的链路。
+   * 实测 14 个 provider 全部 `pull error: EOF`，加上 proxy: DIRECT 后
+   * 34 万条规则一次加载完。
+   */
+  it('可以给 provider 指定出口，用来绕开「拉规则要先有规则」的死循环', () => {
+    const providers = providersOf({
+      rulesetUrl: (rs) => ({ url: `https://msubga.example.com/rules/${rs.id}`, proxy: 'DIRECT' }),
+    });
+    const entries = Object.values(providers);
+    expect(entries.length).toBeGreaterThan(0);
+    expect(entries.every((p) => p.proxy === 'DIRECT')).toBe(true);
+    expect(entries.every((p) => (p.url as string).startsWith('https://msubga.example.com/'))).toBe(true);
+  });
+
+  it('只给 url 不给 proxy 时不写 proxy 键', () => {
+    const providers = providersOf({
+      rulesetUrl: (rs) => ({ url: `https://cache.local/${rs.id}` }),
+    });
+    expect(Object.values(providers).every((p) => !('proxy' in p))).toBe(true);
+  });
+
+  it('behavior / format / path 不受改写影响', () => {
+    const before = providersOf();
+    const after = providersOf({ rulesetUrl: (rs) => `https://cache.local/${rs.id}` });
+    for (const [key, value] of Object.entries(before)) {
+      expect(after[key].behavior).toBe(value.behavior);
+      expect(after[key].format).toBe(value.format);
+      expect(after[key].path).toBe(value.path);
+      expect(after[key].interval).toBe(value.interval);
+    }
+  });
+});

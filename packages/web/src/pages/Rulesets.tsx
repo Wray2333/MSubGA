@@ -2,7 +2,7 @@ import { yaml } from '@codemirror/lang-yaml';
 import { oneDark } from '@codemirror/theme-one-dark';
 import CodeMirror from '@uiw/react-codemirror';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Copy, Eye, Lock, Plus, Trash2 } from 'lucide-react';
+import { Copy, Eye, Lock, Plus, RefreshCw, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import {
@@ -17,6 +17,7 @@ import {
   Spinner,
 } from '../components/ui';
 import { api, type Ruleset } from '../lib/api';
+import { formatBytes, formatTime } from '../lib/utils';
 
 type Draft = Partial<Ruleset> & { name: string; kind: 'remote' | 'inline' };
 
@@ -35,6 +36,30 @@ const BEHAVIOR_HINT: Record<string, string> = {
   domain: '每行一个域名，+. 或 . 开头视为后缀匹配',
   ipcidr: '每行一个 CIDR，生成时会自动加 no-resolve',
 };
+
+/**
+ * 缓存状态。远程规则集的正文由服务端抓下来存着，客户端不用自己去 GitHub 拉——
+ * 这一列就是让人一眼看出「服务端到底抓到没有」。
+ */
+function CacheState({ ruleset }: { ruleset: Ruleset }) {
+  if (ruleset.kind !== 'remote') {
+    return <span className="text-2xs text-muted">不需要</span>;
+  }
+  if (ruleset.cachedAt === null) {
+    return (
+      <Chip tone={ruleset.cacheError ? 'danger' : 'neutral'}>
+        {ruleset.cacheError ? '抓取失败' : '未缓存'}
+      </Chip>
+    );
+  }
+  return (
+    <div className="flex items-center gap-1.5">
+      <Chip tone={ruleset.cacheError ? 'warn' : 'ok'}>{formatBytes(ruleset.cacheSize)}</Chip>
+      {/* 375px 宽放不下两段，窄屏只留体积，时间到详情里看 */}
+      <span className="hidden text-2xs text-muted sm:inline">{formatTime(ruleset.cachedAt)}</span>
+    </div>
+  );
+}
 
 export function RulesetsPage() {
   const queryClient = useQueryClient();
@@ -74,6 +99,29 @@ export function RulesetsPage() {
     onError: (error: Error) => toast.error(error.message),
   });
 
+  const refreshOne = useMutation({
+    mutationFn: (id: string) => api.rulesets.refresh(id),
+    onSuccess: (outcome) => {
+      toast.success(
+        outcome.notModified
+          ? `${outcome.name}：上游没变化`
+          : `${outcome.name} 已缓存 ${formatBytes(outcome.size ?? null)}`,
+      );
+      refresh();
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const refreshAll = useMutation({
+    mutationFn: () => api.rulesets.refreshAll(),
+    onSuccess: ({ total, ok }) => {
+      if (ok === total) toast.success(`${total} 个规则集全部抓取成功`);
+      else toast.warning(`${ok}/${total} 成功，失败的看列表里的状态`);
+      refresh();
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
   const duplicate = useMutation({
     mutationFn: (id: string) => api.rulesets.duplicate(id),
     onSuccess: ({ ruleset }) => {
@@ -93,8 +141,16 @@ export function RulesetsPage() {
       <PageHeader
         title="规则集"
         count={`${rulesets.length} 个`}
-        subtitle="远程规则集会写成 rule-provider；内联规则集在生成时直接展开成规则行"
+        subtitle="远程规则集的正文由服务端抓取并缓存，客户端直接从本站拉，不用自己访问上游地址"
       >
+        <Button
+          loading={refreshAll.isPending}
+          onClick={() => refreshAll.mutate()}
+          title="把所有远程规则集重新抓一遍"
+        >
+          <RefreshCw className="size-4" />
+          <span className="hidden sm:inline">刷新缓存</span>
+        </Button>
         <Button
           variant="primary"
           onClick={() => {
@@ -117,7 +173,11 @@ export function RulesetsPage() {
                 <th className="px-3 py-2.5 text-left font-medium">名称</th>
                 <th className="hidden w-20 px-2 py-2.5 text-left font-medium sm:table-cell">来源</th>
                 <th className="hidden w-28 px-2 py-2.5 text-left font-medium md:table-cell">行为 / 格式</th>
-                <th className="hidden px-2 py-2.5 text-left font-medium lg:table-cell">内容</th>
+                <th className="w-20 px-2 py-2.5 text-left font-medium sm:w-40">
+                  <span className="sm:hidden">缓存</span>
+                  <span className="hidden sm:inline">服务端缓存</span>
+                </th>
+                <th className="hidden px-2 py-2.5 text-left font-medium xl:table-cell">内容</th>
                 <th className="w-px px-2 py-2.5" />
               </tr>
             </thead>
@@ -147,7 +207,10 @@ export function RulesetsPage() {
                   </td>
                   {/* 原来这列塞完整 URL 又写死 truncate，等于永远看不全。
                       列表只给文件名，完整地址放详情里，那里能选中也能复制。 */}
-                  <td className="hidden px-2 py-2.5 lg:table-cell">
+                  <td className="px-2 py-2.5">
+                    <CacheState ruleset={ruleset} />
+                  </td>
+                  <td className="hidden px-2 py-2.5 xl:table-cell">
                     <span className="font-mono text-2xs text-muted">
                       {ruleset.kind === 'remote'
                         ? (ruleset.url ?? '').split('/').pop()
@@ -160,6 +223,19 @@ export function RulesetsPage() {
                         <Eye className="size-3" />
                         <span className="hidden sm:inline">详情</span>
                       </Button>
+                      {/* 窄屏这一行只放得下两个按钮，刷新挪进详情里 */}
+                      {ruleset.kind === 'remote' && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="hidden sm:inline-flex"
+                          title="重新抓一遍这个规则集"
+                          loading={refreshOne.isPending && refreshOne.variables === ruleset.id}
+                          onClick={() => refreshOne.mutate(ruleset.id)}
+                        >
+                          <RefreshCw className="size-3" />
+                        </Button>
+                      )}
                       {ruleset.builtin ? (
                         <Button size="sm" onClick={() => duplicate.mutate(ruleset.id)}>
                           <Copy className="size-3" />
@@ -197,7 +273,14 @@ export function RulesetsPage() {
         </div>
       )}
 
-      {viewing && <RulesetDetail ruleset={viewing} onClose={() => setViewing(null)} />}
+      {viewing && (
+        <RulesetDetail
+          ruleset={viewing}
+          refreshing={refreshOne.isPending && refreshOne.variables === viewing.id}
+          onRefresh={() => refreshOne.mutate(viewing.id)}
+          onClose={() => setViewing(null)}
+        />
+      )}
 
       <Modal
         open={draft !== null}
@@ -306,7 +389,17 @@ export function RulesetsPage() {
 }
 
 /** 只读详情。内置规则集不能编辑，但得让人看得见它到底指向什么、内容长什么样 */
-function RulesetDetail({ ruleset, onClose }: { ruleset: Ruleset; onClose: () => void }) {
+function RulesetDetail({
+  ruleset,
+  refreshing,
+  onRefresh,
+  onClose,
+}: {
+  ruleset: Ruleset;
+  refreshing: boolean;
+  onRefresh: () => void;
+  onClose: () => void;
+}) {
   const lines = (ruleset.content ?? '').split('\n').filter(Boolean);
 
   return (
@@ -318,6 +411,14 @@ function RulesetDetail({ ruleset, onClose }: { ruleset: Ruleset; onClose: () => 
       size="lg"
       title={ruleset.name}
       description={ruleset.description ?? undefined}
+      footer={
+        ruleset.kind === 'remote' ? (
+          <Button loading={refreshing} onClick={onRefresh}>
+            <RefreshCw className="size-4" />
+            重新抓取
+          </Button>
+        ) : undefined
+      }
     >
       <div className="space-y-4">
         <dl className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
@@ -342,8 +443,35 @@ function RulesetDetail({ ruleset, onClose }: { ruleset: Ruleset; onClose: () => 
               {ruleset.url}
             </code>
             <p className="mt-2 text-2xs text-muted">
-              生成订阅时会写成 rule-provider，由客户端自己去拉取并按 24 小时缓存。
+              服务端会把这个地址的正文抓下来存在本地。生成订阅时 rule-provider 指向本站，
+              客户端拿规则不用自己访问上面这个地址。
             </p>
+
+            <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
+              <div>
+                <dt className="telemetry-cjk text-muted">缓存状态</dt>
+                <dd className="mt-1 font-mono text-xs text-fg-2">
+                  {ruleset.cachedAt === null ? '未缓存' : '已缓存'}
+                </dd>
+              </div>
+              <div>
+                <dt className="telemetry-cjk text-muted">正文体积</dt>
+                <dd className="mt-1 font-mono text-xs text-fg-2">{formatBytes(ruleset.cacheSize)}</dd>
+              </div>
+              <div>
+                <dt className="telemetry-cjk text-muted">上次抓取</dt>
+                <dd className="mt-1 font-mono text-xs text-fg-2">{formatTime(ruleset.cachedAt)}</dd>
+              </div>
+            </dl>
+
+            {ruleset.cacheError && (
+              <div className="mt-3 rounded border border-danger/40 bg-danger/10 px-2.5 py-2 text-xs text-danger">
+                上次抓取失败：{ruleset.cacheError}
+                <div className="mt-1 text-2xs opacity-80">
+                  服务器自己也连不上这个地址。确认它能访问 GitHub，或者把规则集换成能直连的镜像地址。
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           <div>

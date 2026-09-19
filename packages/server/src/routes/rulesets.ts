@@ -6,6 +6,11 @@ import { z } from 'zod';
 import { db } from '../db/index.js';
 import { ruleProfiles, rulesets } from '../db/schema.js';
 import { requireAuth } from '../lib/middleware.js';
+import {
+  dropCachedRuleset,
+  listRemoteRulesets,
+  refreshRuleset,
+} from '../lib/rulesetCache.js';
 
 export const rulesetRoutes = new Hono();
 rulesetRoutes.use('*', requireAuth);
@@ -70,12 +75,19 @@ rulesetRoutes.patch('/:id', async (c) => {
   const parsed = rulesetSchema.safeParse({ ...current, ...(await c.req.json().catch(() => ({}))) });
   if (!parsed.success) return c.json({ error: firstIssue(parsed.error) }, 400);
 
+  // 换了地址或格式，之前缓存的正文就对不上了，连同状态一起清掉
+  const invalidated = parsed.data.url !== current.url || parsed.data.format !== current.format;
+  if (invalidated) await dropCachedRuleset(current);
+
   db.update(rulesets)
     .set({
       ...parsed.data,
       description: parsed.data.description ?? null,
       url: parsed.data.url ?? null,
       content: parsed.data.content ?? null,
+      ...(invalidated
+        ? { cachedAt: null, cacheSize: null, cacheEtag: null, cacheError: null }
+        : {}),
       updatedAt: Date.now(),
     })
     .where(eq(rulesets.id, id))
@@ -83,7 +95,7 @@ rulesetRoutes.patch('/:id', async (c) => {
   return c.json({ ok: true });
 });
 
-rulesetRoutes.delete('/:id', (c) => {
+rulesetRoutes.delete('/:id', async (c) => {
   const id = c.req.param('id');
   const current = db.select().from(rulesets).where(eq(rulesets.id, id)).get();
   if (!current) return c.json({ error: '规则集不存在' }, 404);
@@ -106,6 +118,7 @@ rulesetRoutes.delete('/:id', (c) => {
   }
 
   db.delete(rulesets).where(eq(rulesets.id, id)).run();
+  await dropCachedRuleset(current);
   return c.json({ ok: true });
 });
 
@@ -120,9 +133,41 @@ rulesetRoutes.post('/:id/duplicate', (c) => {
     id: nanoid(),
     name: `${source.name} 副本`,
     builtin: false,
+    cachedAt: null,
+    cacheSize: null,
+    cacheEtag: null,
+    cacheError: null,
     createdAt: now,
     updatedAt: now,
   };
   db.insert(rulesets).values(copy).run();
   return c.json({ ruleset: copy }, 201);
+});
+
+/* -------------------------------------------------------------------------- */
+/*                                 缓存维护                                     */
+/* -------------------------------------------------------------------------- */
+
+/** 手动把某个规则集重新抓一遍，忽略 TTL 和 ETag */
+rulesetRoutes.post('/:id/refresh', async (c) => {
+  const row = db.select().from(rulesets).where(eq(rulesets.id, c.req.param('id'))).get();
+  if (!row) return c.json({ error: '规则集不存在' }, 404);
+  if (row.kind !== 'remote') return c.json({ error: '内联规则集不需要缓存' }, 400);
+
+  const outcome = await refreshRuleset(row, true);
+  return c.json(outcome, outcome.ok ? 200 : 502);
+});
+
+/** 全量刷新。顺序抓，十几 MB 一次拉完要一会儿 */
+rulesetRoutes.post('/refresh', async (c) => {
+  const rows = listRemoteRulesets();
+  const results = [];
+  for (const row of rows) {
+    results.push(await refreshRuleset(row, true));
+  }
+  return c.json({
+    total: results.length,
+    ok: results.filter((r) => r.ok).length,
+    results,
+  });
 });

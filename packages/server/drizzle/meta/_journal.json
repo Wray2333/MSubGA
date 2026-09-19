@@ -8,6 +8,13 @@
       "when": 1789646942748,
       "tag": "0000_ancient_lenny_balinger",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1789783661612,
+      "tag": "0001_pale_exiles",
+      "breakpoints": true
     }
   ]
 }

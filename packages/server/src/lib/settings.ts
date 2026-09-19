@@ -11,6 +11,7 @@ export const SETTING_KEYS = {
   latencyTimeoutMs: 'latency.timeoutMs',
   latencyConcurrency: 'latency.concurrency',
   siteBaseUrl: 'site.baseUrl',
+  rulesetProxy: 'ruleset.proxyThroughServer',
 } as const;
 
 export type SettingKey = (typeof SETTING_KEYS)[keyof typeof SETTING_KEYS];
@@ -19,6 +20,7 @@ export const DEFAULTS = {
   [SETTING_KEYS.latencyTestUrl]: 'https://www.gstatic.com/generate_204',
   [SETTING_KEYS.latencyTimeoutMs]: '5000',
   [SETTING_KEYS.latencyConcurrency]: '16',
+  [SETTING_KEYS.rulesetProxy]: 'true',
 } as const satisfies Partial<Record<SettingKey, string>>;
 
 export function getSetting(key: SettingKey): string | undefined {
@@ -42,6 +44,20 @@ export function getNumberSetting(key: SettingKey, fallback: number): number {
   if (raw === undefined) return fallback;
   const parsed = Number.parseInt(raw, 10);
   return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+export function getBooleanSetting(key: SettingKey, fallback: boolean): boolean {
+  const raw = getSetting(key);
+  if (raw === undefined) return fallback;
+  return raw === 'true' || raw === '1';
+}
+
+/**
+ * 规则集是否由服务端中转。
+ * 开着的时候生成的配置里 rule-provider 指向本站，客户端不用自己去 GitHub 拉。
+ */
+export function isRulesetProxyEnabled(): boolean {
+  return getBooleanSetting(SETTING_KEYS.rulesetProxy, true);
 }
 
 /** 测速相关配置，tester 和设置页共用 */

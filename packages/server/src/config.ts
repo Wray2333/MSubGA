@@ -10,6 +10,8 @@ export const DATA_DIR = process.env['MSUBGA_DATA_DIR']
   : join(REPO_ROOT, 'data');
 
 export const DB_PATH = join(DATA_DIR, 'msubga.db');
+/** 服务端缓存的规则集正文，一个规则集一个文件 */
+export const RULESET_CACHE_DIR = join(DATA_DIR, 'rulesets');
 export const MIHOMO_DIR = join(DATA_DIR, 'mihomo');
 export const MIHOMO_BIN_DIR = join(MIHOMO_DIR, 'bin');
 export const MIHOMO_RUN_DIR = join(MIHOMO_DIR, 'run');

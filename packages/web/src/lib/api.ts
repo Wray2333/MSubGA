@@ -97,7 +97,20 @@ export interface Ruleset {
   url: string | null;
   content: string | null;
   builtin: boolean;
+  /** 服务端上次抓到正文的时间，null = 还没缓存过 */
+  cachedAt: number | null;
+  cacheSize: number | null;
+  cacheError: string | null;
   updatedAt: number;
+}
+
+export interface RefreshOutcome {
+  id: string;
+  name: string;
+  ok: boolean;
+  notModified?: boolean;
+  size?: number;
+  error?: string;
 }
 
 export interface RuleProfile {
@@ -135,6 +148,8 @@ export interface Subscription {
 export interface SettingsPayload {
   latency: { testUrl: string; timeoutMs: number; concurrency: number };
   siteBaseUrl: string;
+  /** 规则集是否由服务端抓取并中转给客户端 */
+  rulesetProxy: boolean;
   mihomo: { path?: string; version?: string; ready: boolean; running: boolean };
 }
 
@@ -195,6 +210,9 @@ export const api = {
     update: (id: string, payload: Partial<Ruleset>) => patch<{ ok: true }>(`/api/rulesets/${id}`, payload),
     remove: (id: string) => del<{ ok: true }>(`/api/rulesets/${id}`),
     duplicate: (id: string) => post<{ ruleset: Ruleset }>(`/api/rulesets/${id}/duplicate`),
+    refresh: (id: string) => post<RefreshOutcome>(`/api/rulesets/${id}/refresh`),
+    refreshAll: () =>
+      post<{ total: number; ok: number; results: RefreshOutcome[] }>('/api/rulesets/refresh'),
   },
   profiles: {
     list: () => get<{ profiles: RuleProfile[] }>('/api/profiles'),

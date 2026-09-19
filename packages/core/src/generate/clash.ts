@@ -73,9 +73,13 @@ function providerKey(name: string, fallbackId: string): string {
 
 /** provider 的 path 会落成磁盘文件名，用 id 而不是名字，避免非 ASCII 文件名在各平台上的差异 */
 function providerPath(id: string, format: RulesetFormat): string {
-  const ext = format === 'mrs' ? 'mrs' : format === 'yaml' ? 'yaml' : 'list';
   const safe = id.replace(/[^\w.-]+/g, '_');
-  return `./ruleset/${safe}.${ext}`;
+  return `./ruleset/${safe}.${rulesetExtension(format)}`;
+}
+
+/** 规则集文件的扩展名，provider 的 path 和服务端缓存出口共用 */
+export function rulesetExtension(format: RulesetFormat): string {
+  return format === 'mrs' ? 'mrs' : format === 'yaml' ? 'yaml' : 'list';
 }
 
 /** 内联规则集展开成一条条字面量规则。规则集不对外暴露 URL，只能这么塞进去 */
@@ -155,6 +159,25 @@ export interface ClashGenerateInput {
   title?: string;
   /** 跳过校验，只在明确知道自己在干什么时用 */
   skipValidation?: boolean;
+  /**
+   * 改写远程规则集的下载方式。返回 undefined 就用规则集自己的 URL、不指定出口。
+   *
+   * 存在的理由：规则集大多挂在 raw.githubusercontent.com 上，而客户端要先连上代理
+   * 才够得着那里——可规则正是用来决定怎么代理的。服务端把规则缓存下来再由这里
+   * 改写成自己的地址，客户端只要能访问订阅链接就能拿到规则，解开这个死循环。
+   *
+   * 只改 url 不够：内核拉 provider 也要走一遍自己的规则，而这时规则还没加载，
+   * 全部落到 MATCH 上，也就是丢进代理组——正好是还没就绪的那条链路。实测 14 个
+   * provider 全部 `pull error: EOF`。所以改写地址时必须同时把 proxy 指成 DIRECT，
+   * 让内核直连去取——客户端本来就是直连下载的订阅，这条路一定通。
+   */
+  rulesetUrl?: (ruleset: RulesetRecord) => string | RulesetSource | undefined;
+}
+
+export interface RulesetSource {
+  url: string;
+  /** 内核拉这份规则时走哪个出口，通常是 DIRECT */
+  proxy?: string;
 }
 
 export interface ClashGenerateResult {
@@ -176,6 +199,7 @@ function renderRule(
   rulesetById: ReadonlyMap<string, RulesetRecord>,
   ruleProviders: Record<string, unknown>,
   slugById: Map<string, string>,
+  resolveUrl: ((ruleset: RulesetRecord) => string | RulesetSource | undefined) | undefined,
 ): string[] {
   switch (rule.type) {
     case 'match':
@@ -200,14 +224,20 @@ function renderRule(
         // 两个规则集重名时给后来的加上 id 后缀，否则后者会覆盖前者
         if (ruleProviders[key]) key = `${key} (${ruleset.id})`;
         slugById.set(ruleset.id, key);
-        ruleProviders[key] = {
+        const resolved = resolveUrl?.(ruleset);
+        const source: RulesetSource =
+          typeof resolved === 'string' ? { url: resolved } : (resolved ?? { url: ruleset.url });
+
+        ruleProviders[key] = compactYaml({
           type: 'http',
           behavior: ruleset.behavior,
           format: ruleset.format,
-          url: ruleset.url,
+          url: source.url,
+          // 没指定就不写这个键，让内核按默认行为（走规则）去拉
+          proxy: source.proxy,
           path: providerPath(ruleset.id, ruleset.format),
           interval: 86400,
-        };
+        });
       }
 
       const noResolve = ruleset.behavior === 'ipcidr' && rule.noResolve !== false;
@@ -270,7 +300,16 @@ export function generateClashConfig(input: ClashGenerateInput): ClashGenerateRes
   const slugById = new Map<string, string>();
   const rules: string[] = [];
   for (const rule of input.profile.rules) {
-    rules.push(...renderRule(rule, resolveTarget(rule.target), rulesetById, ruleProviders, slugById));
+    rules.push(
+      ...renderRule(
+        rule,
+        resolveTarget(rule.target),
+        rulesetById,
+        ruleProviders,
+        slugById,
+        input.rulesetUrl,
+      ),
+    );
   }
 
   const general = input.profile.general;

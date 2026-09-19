@@ -2,7 +2,13 @@ import { existsSync } from 'node:fs';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { requireAuth } from '../lib/middleware.js';
-import { SETTING_KEYS, getLatencySettings, getSetting, setSetting } from '../lib/settings.js';
+import {
+  SETTING_KEYS,
+  getLatencySettings,
+  getSetting,
+  isRulesetProxyEnabled,
+  setSetting,
+} from '../lib/settings.js';
 import { MihomoUnavailableError, describeBinary, downloadMihomo, probeVersion } from '../mihomo/binary.js';
 import { mihomo } from '../mihomo/controller.js';
 
@@ -13,6 +19,7 @@ settingsRoutes.get('/', (c) =>
   c.json({
     latency: getLatencySettings(),
     siteBaseUrl: getSetting(SETTING_KEYS.siteBaseUrl) ?? '',
+    rulesetProxy: isRulesetProxyEnabled(),
     mihomo: { ...describeBinary(), running: mihomo.running },
   }),
 );
@@ -22,6 +29,7 @@ const patchSchema = z.object({
   latencyTimeoutMs: z.number().int().min(500).max(60_000).optional(),
   latencyConcurrency: z.number().int().min(1).max(64).optional(),
   siteBaseUrl: z.string().optional(),
+  rulesetProxy: z.boolean().optional(),
   mihomoPath: z.string().optional(),
 });
 
@@ -35,6 +43,10 @@ settingsRoutes.patch('/', async (c) => {
   if (data.latencyConcurrency) setSetting(SETTING_KEYS.latencyConcurrency, String(data.latencyConcurrency));
   if (data.siteBaseUrl !== undefined) {
     setSetting(SETTING_KEYS.siteBaseUrl, data.siteBaseUrl.replace(/\/+$/, ''));
+  }
+
+  if (data.rulesetProxy !== undefined) {
+    setSetting(SETTING_KEYS.rulesetProxy, String(data.rulesetProxy));
   }
 
   if (data.mihomoPath !== undefined) {
