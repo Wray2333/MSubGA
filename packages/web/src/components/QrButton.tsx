@@ -32,7 +32,9 @@ export function QrButton({ url, name }: { url: string; name: string }) {
           {error ? (
             <p className="text-xs text-danger">生成二维码失败：{error}</p>
           ) : (
-            <canvas ref={drawQr} className="rounded bg-white p-2" />
+            // 二维码必须是白底深码才扫得动，两套主题都保持白底；
+            // 亮色下白底和卡片同色，靠边框把它和背景分开
+            <canvas ref={drawQr} className="rounded border border-border bg-white p-2" />
           )}
           <code className="break-all text-center text-[11px] text-muted">{url}</code>
         </div>

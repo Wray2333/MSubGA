@@ -1,5 +1,4 @@
 import { yaml } from '@codemirror/lang-yaml';
-import { oneDark } from '@codemirror/theme-one-dark';
 import CodeMirror from '@uiw/react-codemirror';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Copy, Eye, Lock, Plus, RefreshCw, Trash2 } from 'lucide-react';
@@ -16,6 +15,7 @@ import {
   Select,
   Spinner,
 } from '../components/ui';
+import { useEditorTheme } from '../lib/editorTheme';
 import { api, type Ruleset } from '../lib/api';
 import { formatBytes, formatTime } from '../lib/utils';
 
@@ -62,6 +62,7 @@ function CacheState({ ruleset }: { ruleset: Ruleset }) {
 }
 
 export function RulesetsPage() {
+  const editorTheme = useEditorTheme();
   const queryClient = useQueryClient();
   const { data, isLoading } = useQuery({ queryKey: ['rulesets'], queryFn: api.rulesets.list });
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -374,7 +375,7 @@ export function RulesetsPage() {
                   <CodeMirror
                     value={draft.content ?? ''}
                     height="260px"
-                    theme={oneDark}
+                    theme={editorTheme}
                     extensions={[yaml()]}
                     onChange={(value) => setDraft({ ...draft, content: value })}
                   />

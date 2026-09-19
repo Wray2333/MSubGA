@@ -5,9 +5,16 @@
 @import '@fontsource/jetbrains-mono/latin-700.css';
 
 /*
- * 视觉方向：Ethereal Glass —— 深黑基底 + 冷色渐变 + 发丝边框。
+ * 视觉方向：Ethereal Glass —— 冷色基底 + 青→靛渐变 + 发丝边框。
  * JetBrains Mono 承担全部拉丁字母和数字，中文落到系统字体，
  * 等宽的拉丁配上比例排布的汉字，正好是这套工具要的技术感。
+ *
+ * 双主题：@theme 里是暗色（产品的默认长相），亮色在下面的
+ * :root[data-theme='light'] 里整套换掉。所有工具类都编译成
+ * var(--color-*)，所以换 token 就能换主题，不用改任何组件。
+ *
+ * 语义色在两套里是不同的值，不是同一个色调亮暗微调：
+ * #4ade80 这类为暗底调出来的颜色压在白底上只有 1.7:1，必须整体加深。
  */
 @theme {
   /* 基底：接近 OLED 黑，但留一点蓝调，纯黑会显得死 */
@@ -48,6 +55,106 @@
   --radius-full: 9999px;
 }
 
+/*
+ * 浏览器自己画的那些面（选中、光标、滚动条、遮罩、投影）也归主题管。
+ * 这些不是 Tailwind 工具类能覆盖的，单独抽成变量，两套各给一份。
+ */
+:root {
+  color-scheme: dark;
+
+  /* 背景氛围光：两团极淡的冷色光晕 */
+  --ambient-1: rgb(56 189 248 / 0.07);
+  --ambient-2: rgb(99 102 241 / 0.08);
+  /* 卡片上缘的受光面 */
+  --hairline: inset 0 1px 0 rgb(255 255 255 / 0.06);
+  /* 弹层背后的压暗 */
+  --scrim: rgb(0 0 0 / 0.7);
+  --shadow-color: rgb(0 0 0 / 0.6);
+  --selection-bg: rgb(56 189 248 / 0.3);
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  /* 亮色不用纸张色：这是台仪器，底色带蓝灰，和暗色是同一族 */
+  --color-bg: #f4f7fb;
+  --color-surface: #ffffff;
+  --color-surface-2: #e9eff7;
+  --color-border: #d8e0ec;
+  --color-border-strong: #98a6bb;
+
+  --color-fg: #0b1220;
+  --color-fg-2: #3c4859;
+  --color-muted: #5b6878;
+
+  /* 青和靛都要压深：#38bdf8 压在白底上只有 1.9:1，当正文色读不了 */
+  --color-accent: #0369a1;
+  --color-accent-2: #4f46e5;
+  --color-accent-fg: #ffffff;
+
+  --color-terminal: #166534;
+  --color-danger: #be123c;
+  --color-ok: #166534;
+  --color-warn: #92400e;
+
+  /* 白底上光晕要更淡，否则整片发灰 */
+  --ambient-1: rgb(56 189 248 / 0.1);
+  --ambient-2: rgb(99 102 241 / 0.08);
+  /* 白面上的「受光上缘」看不见，改成一道极淡的暗线当硬边 */
+  --hairline: inset 0 1px 0 rgb(11 18 32 / 0.05);
+  --scrim: rgb(15 23 42 / 0.4);
+  --shadow-color: rgb(15 23 42 / 0.18);
+  --selection-bg: rgb(3 105 161 / 0.18);
+}
+
+/* JS 还没跑起来时（或被禁用）跟随系统，避免亮色系统上闪一下黑 */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) {
+    color-scheme: light;
+
+    --color-bg: #f4f7fb;
+    --color-surface: #ffffff;
+    --color-surface-2: #e9eff7;
+    --color-border: #d8e0ec;
+    --color-border-strong: #98a6bb;
+
+    --color-fg: #0b1220;
+    --color-fg-2: #3c4859;
+    --color-muted: #5b6878;
+
+    --color-accent: #0369a1;
+    --color-accent-2: #4f46e5;
+    --color-accent-fg: #ffffff;
+
+    --color-terminal: #166534;
+    --color-danger: #be123c;
+    --color-ok: #166534;
+    --color-warn: #92400e;
+
+    --ambient-1: rgb(56 189 248 / 0.1);
+    --ambient-2: rgb(99 102 241 / 0.08);
+    --hairline: inset 0 1px 0 rgb(11 18 32 / 0.05);
+    --scrim: rgb(15 23 42 / 0.4);
+    --shadow-color: rgb(15 23 42 / 0.18);
+    --selection-bg: rgb(3 105 161 / 0.18);
+  }
+}
+
+/*
+ * 切主题的那一瞬间把所有过渡关掉。
+ * 两个原因，第二个是必须的：
+ *   1. 几百个元素各自用自己的时长渐变一遍，看起来是脏的，不是高级的；
+ *   2. 带 transition 的元素在 CSS 变量变化后不会重新解析 var() 驱动的颜色——
+ *      实测切到亮色后侧栏导航项仍是暗色那套灰（#7d879b 压在 #f4f7fb 上只有 3.36:1），
+ *      要刷新才恢复。关掉过渡这一帧，颜色就直接落到新值。
+ */
+.theme-switching,
+.theme-switching *,
+.theme-switching *::before,
+.theme-switching *::after {
+  transition: none !important;
+}
+
 html,
 body,
 #root {
@@ -73,8 +180,8 @@ body::before {
   z-index: -1;
   pointer-events: none;
   background:
-    radial-gradient(60rem 40rem at 12% -10%, rgb(56 189 248 / 0.07), transparent 60%),
-    radial-gradient(50rem 36rem at 105% 8%, rgb(99 102 241 / 0.08), transparent 62%);
+    radial-gradient(60rem 40rem at 12% -10%, var(--ambient-1), transparent 60%),
+    radial-gradient(50rem 36rem at 105% 8%, var(--ambient-2), transparent 62%);
 }
 
 code,
@@ -111,9 +218,24 @@ textarea {
   background-image: linear-gradient(135deg, var(--color-accent) 0%, var(--color-accent-2) 100%);
 }
 
-/* 发丝边框：上缘亮一点，模拟受光面 */
+/* 发丝边框：暗色是上缘受光，亮色是一道淡暗线 */
 .hairline-top {
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.06);
+  box-shadow: var(--hairline);
+}
+
+.scrim {
+  background: var(--scrim);
+}
+
+/*
+ * 弹层的抬升。不用 Tailwind 的 shadow-2xl + 任意值叠加：
+ * 两者在 v4 里会互相覆盖，实测算出来是一组全透明的阴影，等于没有。
+ * 直接一条 box-shadow，颜色走主题变量。
+ */
+.elevated {
+  box-shadow:
+    0 1px 2px -1px var(--shadow-color),
+    0 24px 60px -12px var(--shadow-color);
 }
 
 ::-webkit-scrollbar {
@@ -137,7 +259,7 @@ textarea {
 }
 
 ::selection {
-  background: rgb(56 189 248 / 0.3);
+  background: var(--selection-bg);
   color: var(--color-fg);
 }
 

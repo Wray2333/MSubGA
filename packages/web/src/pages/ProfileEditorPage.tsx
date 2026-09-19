@@ -1,5 +1,4 @@
 import { json } from '@codemirror/lang-json';
-import { oneDark } from '@codemirror/theme-one-dark';
 import CodeMirror from '@uiw/react-codemirror';
 import {
   BUILTIN_OUTBOUNDS,
@@ -37,6 +36,7 @@ import {
   TabsList,
   TabsTrigger,
 } from '../components/ui';
+import { useEditorTheme } from '../lib/editorTheme';
 import { api, type Ruleset, type ValidationIssue } from '../lib/api';
 import { cn } from '../lib/utils';
 import { RuleDialog, describeRule, type RuleTarget } from './RuleDialog';
@@ -137,6 +137,7 @@ function ProfileEditorForm({
   onDone: () => void;
   onDuplicate?: () => void;
 }) {
+  const editorTheme = useEditorTheme();
   const [issues, setIssues] = useState<ValidationIssue[]>([]);
   const [rawText, setRawText] = useState(() => JSON.stringify(draft.definition, null, 2));
   const [rawError, setRawError] = useState<string | null>(null);
@@ -374,7 +375,7 @@ function ProfileEditorForm({
               <CodeMirror
                 value={rawText}
                 height="420px"
-                theme={oneDark}
+                theme={editorTheme}
                 extensions={[json()]}
                 onChange={setRawText}
                 onBlur={() => {

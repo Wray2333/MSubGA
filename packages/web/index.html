@@ -4,6 +4,29 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>MSubGA</title>
+    <script>
+      /*
+       * 主题必须在首帧之前定好，否则会先闪一下默认色再跳到用户选的那套。
+       * 这段是同步执行的，跑在 body 渲染之前，所以要短、要自带兜底。
+       * 和 lib/theme.ts 共用 'msubga.theme' 这个键。
+       */
+      (function () {
+        try {
+          var saved = localStorage.getItem('msubga.theme');
+          var mode = saved === 'light' || saved === 'dark' || saved === 'system' ? saved : 'dark';
+          var resolved =
+            mode === 'system'
+              ? matchMedia('(prefers-color-scheme: light)').matches
+                ? 'light'
+                : 'dark'
+              : mode;
+          document.documentElement.dataset.theme = resolved;
+        } catch (e) {
+          // 隐私模式下 localStorage 会抛，退回默认的暗色
+          document.documentElement.dataset.theme = 'dark';
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

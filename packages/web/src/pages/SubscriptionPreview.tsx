@@ -1,11 +1,11 @@
 import { yaml } from '@codemirror/lang-yaml';
-import { oneDark } from '@codemirror/theme-one-dark';
 import CodeMirror from '@uiw/react-codemirror';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { CheckCircle2, ShieldCheck, XCircle } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { Button, Modal, Select, Spinner } from '../components/ui';
+import { useEditorTheme } from '../lib/editorTheme';
 import { api, type Subscription } from '../lib/api';
 import { copyText } from '../lib/utils';
 
@@ -16,6 +16,7 @@ export function SubscriptionPreview({
   subscription: Subscription;
   onClose: () => void;
 }) {
+  const editorTheme = useEditorTheme();
   const [target, setTarget] = useState<'clash' | 'base64'>(
     subscription.format === 'base64' ? 'base64' : 'clash',
   );
@@ -116,7 +117,7 @@ export function SubscriptionPreview({
             <CodeMirror
               value={target === 'base64' ? (data?.plain ?? '') : (data?.body ?? '')}
               height="460px"
-              theme={oneDark}
+              theme={editorTheme}
               extensions={[yaml()]}
               editable={false}
             />

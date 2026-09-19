@@ -9,7 +9,8 @@ import type {
   SelectHTMLAttributes,
   TextareaHTMLAttributes,
 } from 'react';
-import { cn } from '../lib/utils';
+import { useTheme } from '../lib/theme';
+import { cn, readableTagColor } from '../lib/utils';
 
 /* --------------------------------- Button -------------------------------- */
 
@@ -205,6 +206,16 @@ export function Chip({
   );
 }
 
+/**
+ * 标签用的 Chip。标签色是用户存下来的固定值，这里按当前主题调到够读再用，
+ * 免得每个调用点都要自己拿主题。
+ */
+export function TagChip({ color, children }: { color: string; children: ReactNode }) {
+  const { theme } = useTheme();
+  const tone = readableTagColor(color, theme);
+  return <Chip style={{ color: tone, borderColor: tone }}>{children}</Chip>;
+}
+
 export function Card({ children, className }: { children: ReactNode; className?: string }) {
   return (
     <section className={cn('border border-border bg-surface', className ?? 'p-4')}>
@@ -309,10 +320,10 @@ export function Modal({
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-40 bg-black/70 backdrop-blur-sm" />
+        <Dialog.Overlay className="scrim fixed inset-0 z-40 backdrop-blur-sm" />
         <Dialog.Content
           className={cn(
-            'fixed z-50 flex flex-col overflow-hidden border border-border bg-surface shadow-2xl shadow-black/60',
+            'elevated fixed z-50 flex flex-col overflow-hidden border border-border bg-surface',
             // 手机：贴底的抽屉，从下方滑出，拇指区就能操作
             'inset-x-0 bottom-0 max-h-[92vh] rounded-t-xl border-b-0',
             // 桌面：居中对话框

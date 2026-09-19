@@ -12,6 +12,7 @@ import {
   PageHeader,
   Select,
   Spinner,
+  TagChip,
 } from '../components/ui';
 import { useIsMobile } from '../hooks/useMediaQuery';
 import { useLatencyStream } from '../hooks/useLatencyStream';
@@ -411,9 +412,9 @@ function NodeRow({
           {node.tagIds.map((id) => {
             const tag = tagById.get(id);
             return tag ? (
-              <Chip key={id} style={{ color: tag.color, borderColor: tag.color }}>
+              <TagChip key={id} color={tag.color}>
                 {tag.name}
-              </Chip>
+              </TagChip>
             ) : null;
           })}
         </div>
@@ -530,9 +531,9 @@ function NodeCard({
           {node.tagIds.map((id) => {
             const tag = tagById.get(id);
             return tag ? (
-              <Chip key={id} style={{ color: tag.color, borderColor: tag.color }}>
+              <TagChip key={id} color={tag.color}>
                 {tag.name}
-              </Chip>
+              </TagChip>
             ) : null;
           })}
           {!node.enabled && <span className="text-2xs text-muted">已停用</span>}

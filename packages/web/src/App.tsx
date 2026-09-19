@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Boxes, Link2, ListTree, Settings as SettingsIcon, Shuffle, Waypoints } from 'lucide-react';
 import { Suspense, lazy } from 'react';
 import { NavLink, Navigate, Route, Routes } from 'react-router-dom';
+import { ThemeToggle } from './components/ThemeToggle';
 import { Spinner } from './components/ui';
 import { api } from './lib/api';
 import { cn } from './lib/utils';
@@ -71,10 +72,14 @@ function Sidebar() {
         ))}
       </nav>
 
-      <div className="telemetry border-t border-border px-4 py-3 text-muted/60">
-        MAKE SUBSCRIPTION
-        <br />
-        GREAT AGAIN
+      <div className="flex items-end justify-between gap-2 border-t border-border px-4 py-3">
+        <div className="telemetry text-muted/60">
+          MAKE SUBSCRIPTION
+          <br />
+          GREAT AGAIN
+        </div>
+        {/* 手机上侧栏不显示，那边的入口在设置页 */}
+        <ThemeToggle />
       </div>
     </aside>
   );

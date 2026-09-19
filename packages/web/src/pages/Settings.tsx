@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CheckCircle2, Download, LogOut, XCircle } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { ThemeToggle } from '../components/ThemeToggle';
 import { Button, Card, CheckLabel, Field, Input, PageHeader, Spinner } from '../components/ui';
 import { api } from '../lib/api';
 
@@ -67,9 +68,17 @@ export function SettingsPage() {
 
   return (
     <div className="max-w-6xl space-y-4 p-4 sm:p-6">
-      <PageHeader title="设置" subtitle="内核、测速参数、对外地址和管理员密码" />
+      <PageHeader title="设置" subtitle="外观、内核、测速参数、对外地址和管理员密码" />
 
       <div className="grid items-start gap-4 xl:grid-cols-2">
+        <Card>
+        <h2 className="mb-3 text-[0.9375rem] font-medium">外观</h2>
+        <p className="mb-3 text-xs text-muted">
+          只存在这台设备的浏览器里，不上传，也不影响别人打开的样子。
+        </p>
+        <ThemeToggle labels className="flex w-full sm:w-auto" />
+        </Card>
+
         <Card>
         <div className="mb-3 flex items-center gap-2">
           <h2 className="mr-auto text-[0.9375rem] font-medium">mihomo 内核</h2>
