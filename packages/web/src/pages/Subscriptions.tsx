@@ -3,7 +3,7 @@ import { Copy, Eye, Plus, RefreshCw, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { QrButton } from '../components/QrButton';
-import { Chip, Button, Empty, Spinner } from '../components/ui';
+import { Button, Chip, Empty, PageHeader, Spinner } from '../components/ui';
 import { api, type Subscription } from '../lib/api';
 import { copyText, formatTime } from '../lib/utils';
 import { SubscriptionEditor, type SubscriptionDraft } from './SubscriptionEditor';
@@ -51,14 +51,12 @@ export function SubscriptionsPage() {
   const profileName = (id: string | null) => profiles.find((p) => p.id === id)?.name ?? '—';
 
   return (
-    <div className="space-y-3 p-5">
-      <header className="flex items-center gap-2">
-        <h1 className="mr-auto text-base font-semibold">
-          订阅
-          <span className="ml-2 text-xs font-normal text-muted">
-            链接本身就是凭证，泄露了就换一个
-          </span>
-        </h1>
+    <div className="space-y-4 p-4 sm:p-6">
+      <PageHeader
+        title="订阅"
+        count={`${subscriptions.length} 条`}
+        subtitle="链接本身就是凭证，泄露了就换一个"
+      >
         <Button
           variant="primary"
           disabled={profiles.length === 0}
@@ -79,10 +77,10 @@ export function SubscriptionsPage() {
             })
           }
         >
-          <Plus className="h-3.5 w-3.5" />
+          <Plus className="size-4" />
           新建
         </Button>
-      </header>
+      </PageHeader>
 
       {subscriptions.length === 0 ? (
         <Empty title="还没有订阅">先在节点池里导入节点，再来这里生成订阅链接</Empty>
@@ -135,7 +133,7 @@ export function SubscriptionsPage() {
                   <Button
                     size="sm"
                     variant="danger"
-                    className="opacity-0 transition group-hover:opacity-100 focus-visible:opacity-100"
+                    className="hover-reveal opacity-0 transition group-hover:opacity-100 focus-visible:opacity-100"
                     onClick={() => {
                       if (confirm(`删除订阅「${subscription.name}」？`)) remove.mutate(subscription.id);
                     }}

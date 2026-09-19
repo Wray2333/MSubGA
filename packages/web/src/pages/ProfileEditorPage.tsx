@@ -3,13 +3,25 @@ import { oneDark } from '@codemirror/theme-one-dark';
 import CodeMirror from '@uiw/react-codemirror';
 import {
   BUILTIN_OUTBOUNDS,
+  BUILTIN_PROFILES,
   PROXY_GROUP_TYPES,
   type RuleEntry,
   type RuleProfileDefinition,
 } from '@msubga/core';
-import { useMutation } from '@tanstack/react-query';
-import { AlertCircle, CheckCircle2, Plus, Trash2, TriangleAlert } from 'lucide-react';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import {
+  AlertCircle,
+  ArrowLeft,
+  CheckCircle2,
+  Copy,
+  Lock,
+  Plus,
+  Trash2,
+  TriangleAlert,
+} from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { toast } from 'sonner';
 import { SortableList, moveItem } from '../components/SortableList';
 import {
   Button,
@@ -17,9 +29,9 @@ import {
   Chip,
   Field,
   Input,
-  Modal,
   SectionTitle,
   Select,
+  Spinner,
   Tabs,
   TabsContent,
   TabsList,
@@ -28,13 +40,6 @@ import {
 import { api, type Ruleset, type ValidationIssue } from '../lib/api';
 import { cn } from '../lib/utils';
 import { RuleDialog, describeRule, type RuleTarget } from './RuleDialog';
-
-export interface ProfileDraft {
-  id: string | null;
-  name: string;
-  description: string;
-  definition: RuleProfileDefinition;
-}
 
 type Definition = RuleProfileDefinition;
 type Group = Definition['groups'][number];
@@ -46,18 +51,91 @@ const NODE_SOURCE_LABEL: Record<string, string> = {
   nodeIds: '指定节点',
 };
 
-export function ProfileEditor({
+interface Draft {
+  id: string | null;
+  name: string;
+  description: string;
+  definition: Definition;
+}
+
+/**
+ * 规则模板编辑器。
+ *
+ * 这里是一个独立路由而不是模态框：它带标签页、可拖拽列表，还要再开「添加规则」的对话框。
+ * 模态框里套模态框在桌面上别扭，在手机上基本没法用。
+ */
+export function ProfileEditorPage() {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const isNew = id === 'new';
+
+  const { data: profileData, isLoading } = useQuery({
+    queryKey: ['profile', id],
+    queryFn: () => api.profiles.get(id!),
+    enabled: !isNew && Boolean(id),
+  });
+  const { data: rulesetData } = useQuery({ queryKey: ['rulesets'], queryFn: api.rulesets.list });
+
+  const [draft, setDraft] = useState<Draft | null>(null);
+  // 内置模板不能改，但要能看——之前直接点不开，等于藏了内置分流规则
+  const readOnly = profileData?.profile.builtin === true;
+
+  // 切换到另一个模板（比如复制后跳转）时清掉旧草稿，让下面的 effect 重新灌数据
+  useEffect(() => {
+    setDraft(null);
+  }, [id]);
+
+  useEffect(() => {
+    if (draft) return;
+    if (isNew) {
+      setDraft({
+        id: null,
+        name: '',
+        description: '',
+        // 拿内置的「规则分流」当起点，比从空白开始好用得多
+        definition: structuredClone(BUILTIN_PROFILES[0]!.definition),
+      });
+    } else if (profileData) {
+      setDraft({
+        id: profileData.profile.id,
+        name: profileData.profile.name,
+        description: profileData.profile.description ?? '',
+        definition: profileData.profile.definition,
+      });
+    }
+  }, [isNew, profileData, draft]);
+
+  if (isLoading || !draft) return <Spinner />;
+
+  return (
+    <ProfileEditorForm
+      draft={draft}
+      rulesets={rulesetData?.rulesets ?? []}
+      readOnly={readOnly}
+      onChange={setDraft}
+      onDone={() => navigate('/profiles')}
+      onDuplicate={async () => {
+        const { profile } = await api.profiles.duplicate(draft.id!);
+        navigate(`/profiles/${profile.id}`, { replace: true });
+      }}
+    />
+  );
+}
+
+function ProfileEditorForm({
   draft,
   rulesets,
+  readOnly = false,
   onChange,
-  onClose,
-  onSaved,
+  onDone,
+  onDuplicate,
 }: {
-  draft: ProfileDraft;
+  draft: Draft;
   rulesets: Ruleset[];
-  onChange: (draft: ProfileDraft) => void;
-  onClose: () => void;
-  onSaved: () => void;
+  readOnly?: boolean;
+  onChange: (draft: Draft) => void;
+  onDone: () => void;
+  onDuplicate?: () => void;
 }) {
   const [issues, setIssues] = useState<ValidationIssue[]>([]);
   const [rawText, setRawText] = useState(() => JSON.stringify(draft.definition, null, 2));
@@ -100,11 +178,14 @@ export function ProfileEditor({
   const save = useMutation({
     mutationFn: async (): Promise<void> => {
       const payload = { name: draft.name, description: draft.description || null, definition };
-      // 新建和更新返回的形状不一样，这里只关心成功与否，统一吞掉返回值
       if (draft.id) await api.profiles.update(draft.id, payload);
       else await api.profiles.create(payload);
     },
-    onSuccess: onSaved,
+    onSuccess: () => {
+      toast.success('模板已保存');
+      onDone();
+    },
+    onError: (error: Error) => toast.error(error.message),
   });
 
   const errors = issues.filter((issue) => issue.level === 'error');
@@ -126,51 +207,31 @@ export function ProfileEditor({
   };
 
   return (
-    <Modal
-      open
-      onOpenChange={(open) => {
-        if (!open) onClose();
-      }}
-      size="lg"
-      title={draft.id ? '编辑规则模板' : '新建规则模板'}
-      description="策略组决定流量能去哪；规则从上往下匹配，第一条命中的生效"
-      footer={
-        <>
-          <span className="mr-auto flex items-center gap-1.5 text-xs">
-            {errors.length > 0 ? (
-              <>
-                <AlertCircle className="size-3.5 text-danger" />
-                <span className="text-danger">{errors.length} 个错误，修掉才能保存</span>
-              </>
-            ) : warnings.length > 0 ? (
-              <>
-                <TriangleAlert className="size-3.5 text-warn" />
-                <span className="text-warn">{warnings.length} 个提醒</span>
-              </>
-            ) : (
-              <>
-                <CheckCircle2 className="size-3.5 text-ok" />
-                <span className="text-muted">校验通过</span>
-              </>
+    <div className="flex h-full flex-col">
+      <div className="flex-1 space-y-4 overflow-y-auto p-4 sm:p-6">
+        <Button variant="ghost" onClick={onDone} className="-ml-2 px-2">
+          <ArrowLeft className="size-4" />
+          返回模板列表
+        </Button>
+
+        {readOnly && (
+          <div className="flex flex-wrap items-center gap-2 border border-accent/30 bg-accent/8 px-3 py-2.5 text-xs">
+            <Lock className="size-3.5 shrink-0 text-accent" />
+            <span className="text-fg-2">这是内置模板，只能查看。想改的话先复制一份。</span>
+            {onDuplicate && (
+              <Button size="sm" variant="primary" className="ml-auto" onClick={onDuplicate}>
+                <Copy className="size-3" />
+                复制后编辑
+              </Button>
             )}
-          </span>
-          <Button onClick={onClose}>取消</Button>
-          <Button
-            variant="primary"
-            loading={save.isPending}
-            disabled={errors.length > 0 || !draft.name.trim()}
-            onClick={() => save.mutate()}
-          >
-            保存
-          </Button>
-        </>
-      }
-    >
-      <div className="space-y-4">
+          </div>
+        )}
+
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="模板名称">
             <Input
               value={draft.name}
+              disabled={readOnly}
               placeholder="例如：家里的分流"
               onChange={(event) => onChange({ ...draft, name: event.target.value })}
             />
@@ -178,6 +239,7 @@ export function ProfileEditor({
           <Field label="说明（可选）">
             <Input
               value={draft.description}
+              disabled={readOnly}
               onChange={(event) => onChange({ ...draft, description: event.target.value })}
             />
           </Field>
@@ -206,14 +268,18 @@ export function ProfileEditor({
           <TabsList>
             <TabsTrigger value="rules">规则</TabsTrigger>
             <TabsTrigger value="groups">策略组</TabsTrigger>
-            <TabsTrigger value="raw">高级（JSON）</TabsTrigger>
+            <TabsTrigger value="raw">高级</TabsTrigger>
           </TabsList>
 
           <TabsContent value="rules" className="pt-3">
-            <SectionTitle title="分流规则" hint="拖动左侧手柄调整顺序，点一行即可编辑">
+            <SectionTitle
+              title="分流规则"
+              hint={readOnly ? '从上往下匹配，第一条命中的生效' : '拖动左侧手柄调整顺序，点一行即可编辑'}
+            >
               <Button
                 size="sm"
                 variant="primary"
+                className={readOnly ? 'hidden' : undefined}
                 onClick={() =>
                   setEditingRule({
                     index: null,
@@ -247,7 +313,8 @@ export function ProfileEditor({
                     rule={rule}
                     targets={targets}
                     rulesetById={rulesetById}
-                    onEdit={() => setEditingRule({ index, rule })}
+                    readOnly={readOnly}
+                    onEdit={() => !readOnly && setEditingRule({ index, rule })}
                     onDelete={() =>
                       setDefinition({
                         ...definition,
@@ -264,6 +331,7 @@ export function ProfileEditor({
             <SectionTitle title="策略组" hint="成员列表里的第一项是客户端默认选中的">
               <Button
                 size="sm"
+                className={readOnly ? 'hidden' : undefined}
                 onClick={() => {
                   const key = `GROUP${definition.groups.length + 1}`;
                   setDefinition({
@@ -311,7 +379,7 @@ export function ProfileEditor({
                 onChange={setRawText}
                 onBlur={() => {
                   try {
-                    const parsed = JSON.parse(rawText) as RuleProfileDefinition;
+                    const parsed = JSON.parse(rawText) as Definition;
                     setRawError(null);
                     onChange({ ...draft, definition: parsed });
                   } catch (error) {
@@ -325,6 +393,39 @@ export function ProfileEditor({
         </Tabs>
       </div>
 
+      {/* 操作条钉在底部：编辑器很长，滚到哪都能保存 */}
+      <div className="sticky bottom-0 flex items-center gap-2 border-t border-border bg-surface/95 px-4 py-3 backdrop-blur sm:px-6">
+        <span className="mr-auto flex items-center gap-1.5 text-xs">
+          {errors.length > 0 ? (
+            <>
+              <AlertCircle className="size-3.5 shrink-0 text-danger" />
+              <span className="text-danger">{errors.length} 个错误</span>
+            </>
+          ) : warnings.length > 0 ? (
+            <>
+              <TriangleAlert className="size-3.5 shrink-0 text-warn" />
+              <span className="text-warn">{warnings.length} 个提醒</span>
+            </>
+          ) : (
+            <>
+              <CheckCircle2 className="size-3.5 shrink-0 text-ok" />
+              <span className="text-muted">校验通过</span>
+            </>
+          )}
+        </span>
+        <Button onClick={onDone}>{readOnly ? '返回' : '取消'}</Button>
+        {!readOnly && (
+          <Button
+            variant="primary"
+            loading={save.isPending}
+            disabled={errors.length > 0 || !draft.name.trim()}
+            onClick={() => save.mutate()}
+          >
+            保存
+          </Button>
+        )}
+      </div>
+
       {editingRule && (
         <RuleDialog
           rule={editingRule.rule}
@@ -336,7 +437,7 @@ export function ProfileEditor({
           onClose={() => setEditingRule(null)}
         />
       )}
-    </Modal>
+    </div>
   );
 }
 
@@ -348,12 +449,14 @@ function RuleRow({
   rule,
   targets,
   rulesetById,
+  readOnly = false,
   onEdit,
   onDelete,
 }: {
   rule: RuleEntry;
   targets: RuleTarget[];
   rulesetById: Map<string, Ruleset>;
+  readOnly?: boolean;
   onEdit: () => void;
   onDelete: () => void;
 }) {
@@ -368,31 +471,44 @@ function RuleRow({
         missing ? 'border-danger/45' : 'border-border hover:border-border-strong',
       )}
     >
-      <button type="button" onClick={onEdit} className="flex min-w-0 flex-1 items-center gap-2.5 text-left">
-        <Chip tone={isMatch ? 'warn' : 'accent'} className="w-16 shrink-0 justify-center">
-          {kind}
-        </Chip>
-        <span
-          className={cn(
-            'min-w-0 flex-1 truncate font-mono text-xs',
-            missing ? 'text-danger' : isMatch ? 'text-muted' : 'text-fg-2',
-          )}
-        >
-          {body}
+      {/*
+        窄屏下这一行放不开：固定宽的类型 chip 和目标组会把内容挤成一个字。
+        手机上改成两行——第一行是类型和内容，第二行是去向。
+      */}
+      <button
+        type="button"
+        onClick={onEdit}
+        disabled={readOnly}
+        className="flex min-w-0 flex-1 flex-col gap-1 text-left disabled:cursor-default sm:flex-row sm:items-center sm:gap-2.5"
+      >
+        <span className="flex min-w-0 items-center gap-2">
+          <Chip tone={isMatch ? 'warn' : 'accent'} className="shrink-0 justify-center sm:w-16">
+            {kind}
+          </Chip>
+          <span
+            className={cn(
+              'min-w-0 flex-1 truncate font-mono text-xs',
+              missing ? 'text-danger' : isMatch ? 'text-muted' : 'text-fg-2',
+            )}
+          >
+            {body}
+          </span>
         </span>
-        <span className="shrink-0 text-2xs text-muted">走</span>
-        <span className="w-32 shrink-0 truncate text-xs">{targetLabel}</span>
+        <span className="flex min-w-0 items-center gap-1.5 sm:contents">
+          <span className="shrink-0 text-2xs text-muted">走</span>
+          <span className="min-w-0 truncate text-xs sm:w-32 sm:shrink-0">{targetLabel}</span>
+        </span>
       </button>
 
-      {/* MATCH 是必需的，不给删 */}
-      {isMatch ? (
+      {/* MATCH 是必需的，不给删；只读模式下所有规则都不给删 */}
+      {isMatch || readOnly ? (
         <span className="w-6 shrink-0" />
       ) : (
         <button
           type="button"
           title="删除这条规则"
           onClick={onDelete}
-          className="w-6 shrink-0 rounded p-1 text-muted opacity-0 transition group-hover:opacity-100 hover:bg-danger/12 hover:text-danger focus-visible:opacity-100"
+          className="hover-reveal w-6 shrink-0 rounded p-1 text-muted opacity-0 transition group-hover:opacity-100 hover:bg-danger/12 hover:text-danger focus-visible:opacity-100"
         >
           <Trash2 className="size-3.5" />
         </button>

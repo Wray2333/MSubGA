@@ -67,7 +67,7 @@ export function SubscriptionPreview({
       <div className="space-y-3">
         <div className="flex items-center gap-3">
           <Select
-            className="w-44"
+            className="w-full sm:w-auto"
             value={target}
             onChange={(event) => setTarget(event.target.value as 'clash' | 'base64')}
           >

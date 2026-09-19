@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CheckCircle2, Download, LogOut, XCircle } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { Button, Card, Field, Input, Spinner } from '../components/ui';
+import { Button, Card, Field, Input, PageHeader, Spinner } from '../components/ui';
 import { api } from '../lib/api';
 
 export function SettingsPage() {
@@ -64,10 +64,11 @@ export function SettingsPage() {
   if (isLoading || !data) return <Spinner />;
 
   return (
-    <div className="max-w-3xl space-y-4 p-5">
-      <h1 className="text-xl font-semibold tracking-tight">设置</h1>
+    <div className="max-w-6xl space-y-4 p-4 sm:p-6">
+      <PageHeader title="设置" subtitle="内核、测速参数、对外地址和管理员密码" />
 
-      <Card>
+      <div className="grid items-start gap-4 xl:grid-cols-2">
+        <Card>
         <div className="mb-3 flex items-center gap-2">
           <h2 className="mr-auto text-[0.9375rem] font-medium">mihomo 内核</h2>
           {data.mihomo.ready ? (
@@ -100,12 +101,12 @@ export function SettingsPage() {
             自动下载
           </Button>
         </div>
-      </Card>
+        </Card>
 
-      <Card>
+        <Card>
         <h2 className="mb-3 text-[0.9375rem] font-medium">测速</h2>
-        <div className="grid gap-3 sm:grid-cols-3">
-          <Field label="测速 URL" hint="默认是 generate_204">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="测速 URL" hint="默认是 generate_204" className="sm:col-span-2">
             <Input value={testUrl} onChange={(event) => setTestUrl(event.target.value)} />
           </Field>
           <Field label="单个超时 (ms)">
@@ -137,9 +138,9 @@ export function SettingsPage() {
             保存
           </Button>
         </div>
-      </Card>
+        </Card>
 
-      <Card>
+        <Card>
         <h2 className="mb-3 text-[0.9375rem] font-medium">站点</h2>
         <Field
           label="对外访问地址"
@@ -156,9 +157,9 @@ export function SettingsPage() {
             保存
           </Button>
         </div>
-      </Card>
+        </Card>
 
-      <Card>
+        <Card>
         <h2 className="mb-1 text-[0.9375rem] font-medium">管理员密码</h2>
         <p className="mb-3 text-xs text-muted">
           改密码会让所有设备上的登录状态立刻失效。订阅链接不受影响。
@@ -185,7 +186,8 @@ export function SettingsPage() {
             退出登录
           </Button>
         </div>
-      </Card>
+        </Card>
+      </div>
     </div>
   );
 }

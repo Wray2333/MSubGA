@@ -13,3 +13,6 @@ data/
 coverage/
 /.msubga.pid
 /msubga.log
+
+# 技能的指导文档进版本库，但 impeccable 自带的 1.7MB 启动器/二进制不进
+.claude/skills/impeccable/scripts/

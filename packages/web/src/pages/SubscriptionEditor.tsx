@@ -135,7 +135,7 @@ export function SubscriptionEditor({
           <div className="mb-2 flex items-center gap-3">
             <h3 className="text-sm font-medium">包含哪些节点</h3>
             <Select
-              className="w-40"
+              className="w-full sm:w-auto"
               value={draft.selection.mode}
               onChange={(event) =>
                 onChange({
@@ -161,7 +161,7 @@ export function SubscriptionEditor({
             <div className="space-y-2">
               <div className="flex items-center gap-2">
                 <Input
-                  className="w-56"
+                  className="w-full sm:w-56"
                   placeholder="搜节点"
                   value={keyword}
                   onChange={(event) => setKeyword(event.target.value)}

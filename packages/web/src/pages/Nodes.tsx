@@ -13,6 +13,7 @@ import {
   Select,
   Spinner,
 } from '../components/ui';
+import { useIsMobile } from '../hooks/useMediaQuery';
 import { useLatencyStream } from '../hooks/useLatencyStream';
 import { api, type NodeItem, type Tag } from '../lib/api';
 import { STATUS_LABEL, cn, delayTone, formatTime } from '../lib/utils';
@@ -23,14 +24,15 @@ import { TagManager } from './TagManager';
 type TestMethod = 'proxy' | 'tcp' | 'auto';
 
 /** 说明直接写进选项里，省掉界面上常驻的一行解释文字 */
-const METHODS: { value: TestMethod; label: string }[] = [
-  { value: 'proxy', label: '内核真实延迟 · 最准' },
-  { value: 'auto', label: '先粗筛再精测 · 最快' },
-  { value: 'tcp', label: '仅 TCP 握手 · 只测可达' },
+const METHODS: { value: TestMethod; label: string; short: string }[] = [
+  { value: 'proxy', label: '内核真实延迟 · 最准', short: '内核实测' },
+  { value: 'auto', label: '先粗筛再精测 · 最快', short: '粗筛+精测' },
+  { value: 'tcp', label: '仅 TCP 握手 · 只测可达', short: 'TCP 握手' },
 ];
 
 export function NodesPage() {
   const queryClient = useQueryClient();
+  const isMobile = useIsMobile();
   const { progress } = useLatencyStream();
 
   const { data, isLoading } = useQuery({ queryKey: ['nodes'], queryFn: api.nodes.list });
@@ -117,20 +119,20 @@ export function NodesPage() {
   if (isLoading) return <Spinner />;
 
   return (
-    <div className="space-y-4 p-6">
+    <div className="space-y-4 p-4 sm:p-6">
       <PageHeader
         title="节点池"
         count={filtered ? `${visible.length} / ${nodes.length}` : `${nodes.length} 个`}
-        subtitle="双击名称即可改名。测速结果会实时刷新。"
+        subtitle={isMobile ? '点名称可以改名，测速结果会实时刷新' : '双击名称即可改名，测速结果会实时刷新'}
       >
         <Select
           value={method}
           onChange={(event) => setMethod(event.target.value as TestMethod)}
-          className="w-44"
+          className="basis-full sm:w-auto sm:basis-auto"
         >
           {METHODS.map((item) => (
             <option key={item.value} value={item.value}>
-              {item.label}
+              {isMobile ? item.short : item.label}
             </option>
           ))}
         </Select>
@@ -167,14 +169,14 @@ export function NodesPage() {
       )}
 
       {nodes.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
           <Input
-            className="w-60"
+            className="col-span-2 sm:w-60"
             placeholder="搜名称或地址"
             value={keyword}
             onChange={(event) => setKeyword(event.target.value)}
           />
-          <Select className="w-28" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
+          <Select className="sm:w-auto" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
             <option value="">全部协议</option>
             {NODE_TYPES.map((type) => (
               <option key={type} value={type}>
@@ -182,7 +184,7 @@ export function NodesPage() {
               </option>
             ))}
           </Select>
-          <Select className="w-32" value={tagFilter} onChange={(e) => setTagFilter(e.target.value)}>
+          <Select className="sm:w-auto" value={tagFilter} onChange={(e) => setTagFilter(e.target.value)}>
             <option value="">全部标签</option>
             {tags.map((tag) => (
               <option key={tag.id} value={tag.id}>
@@ -190,7 +192,7 @@ export function NodesPage() {
               </option>
             ))}
           </Select>
-          <Select className="w-28" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+          <Select className="sm:w-auto" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
             <option value="">全部状态</option>
             <option value="ok">仅存活</option>
             <option value="bad">仅失败</option>
@@ -203,13 +205,9 @@ export function NodesPage() {
       {selectedIds.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 rounded-lg border border-accent/30 bg-accent/8 px-3 py-2">
           <span className="text-xs font-medium text-accent">已选 {selectedIds.length} 个</span>
-          <button
-            type="button"
-            className="text-2xs text-muted underline-offset-2 hover:text-fg hover:underline"
-            onClick={() => setSelected(new Set())}
-          >
+          <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>
             取消选择
-          </button>
+          </Button>
           <div className="ml-auto flex flex-wrap items-center gap-1.5">
             <Button size="sm" variant="subtle" onClick={() => setRenameOpen(true)}>
               <PenLine className="size-3" />
@@ -251,50 +249,75 @@ export function NodesPage() {
         </Empty>
       ) : (
         <div className="overflow-hidden rounded-xl border border-border">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-border bg-surface/60 text-2xs text-muted">
-                <th className="w-10 px-3 py-2.5">
-                  <Checkbox
-                    checked={allVisibleSelected}
-                    title="全选当前筛选结果"
-                    onChange={(event) =>
-                      setSelected((previous) => {
-                        const next = new Set(previous);
-                        for (const node of visible) {
-                          if (event.target.checked) next.add(node.id);
-                          else next.delete(node.id);
-                        }
-                        return next;
-                      })
-                    }
-                  />
-                </th>
-                <th className="px-2 py-2.5 text-left font-medium">节点</th>
-                <th className="w-24 px-2 py-2.5 text-left font-medium">协议</th>
-                <th className="w-44 px-2 py-2.5 text-left font-medium">标签</th>
-                <th className="w-28 px-2 py-2.5 text-right font-medium">延迟</th>
-                <th className="w-16 px-2 py-2.5" />
-              </tr>
-            </thead>
-            <tbody>
-              {visible.map((node) => (
-                <NodeRow
+          {isMobile ? (
+            // 6 列表格在手机上没法看，改成一节点一张卡
+            <div>
+              {visible.map((node, index) => (
+                <NodeCard
                   key={node.id}
                   node={node}
                   tagById={tagById}
                   checked={selected.has(node.id)}
-                  editing={editing?.id === node.id ? editing.value : null}
+                  first={index === 0}
                   onToggle={() => toggle(node.id)}
-                  onStartEdit={() => setEditing({ id: node.id, value: node.name })}
-                  onEditChange={(value) => setEditing({ id: node.id, value })}
-                  onCommitEdit={commitRename}
-                  onCancelEdit={() => setEditing(null)}
-                  onDelete={() => bulkDelete.mutate([node.id])}
+                  onRename={() => {
+                    const next = prompt('改个名字', node.name);
+                    if (next && next.trim() && next.trim() !== node.name) {
+                      rename.mutate({ id: node.id, name: next.trim() });
+                    }
+                  }}
+                  onDelete={() => {
+                    if (confirm(`删除节点「${node.name}」？`)) bulkDelete.mutate([node.id]);
+                  }}
                 />
               ))}
-            </tbody>
-          </table>
+            </div>
+          ) : (
+            <table className="w-full">
+              <thead>
+                <tr className="telemetry-cjk border-b border-border bg-surface/60 text-muted">
+                  <th className="w-10 px-3 py-2.5">
+                    <Checkbox
+                      checked={allVisibleSelected}
+                      title="全选当前筛选结果"
+                      onChange={(event) =>
+                        setSelected((previous) => {
+                          const next = new Set(previous);
+                          for (const node of visible) {
+                            if (event.target.checked) next.add(node.id);
+                            else next.delete(node.id);
+                          }
+                          return next;
+                        })
+                      }
+                    />
+                  </th>
+                  <th className="px-2 py-2.5 text-left font-normal">节点</th>
+                  <th className="w-24 px-2 py-2.5 text-left font-normal">协议</th>
+                  <th className="w-44 px-2 py-2.5 text-left font-normal">标签</th>
+                  <th className="w-28 px-2 py-2.5 text-right font-normal">延迟</th>
+                  <th className="w-16 px-2 py-2.5" />
+                </tr>
+              </thead>
+              <tbody>
+                {visible.map((node) => (
+                  <NodeRow
+                    key={node.id}
+                    node={node}
+                    tagById={tagById}
+                    checked={selected.has(node.id)}
+                    editing={editing?.id === node.id ? editing.value : null}
+                    onToggle={() => toggle(node.id)}
+                    onStartEdit={() => setEditing({ id: node.id, value: node.name })}
+                    onEditChange={(value) => setEditing({ id: node.id, value })}
+                    onCommitEdit={commitRename}
+                    onCancelEdit={() => setEditing(null)}
+                    onDelete={() => bulkDelete.mutate([node.id])}
+                  />
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       )}
 
@@ -337,16 +360,16 @@ function NodeRow({
   return (
     <tr
       className={cn(
-        'group border-b border-border/60 transition last:border-0 hover:bg-surface/50',
+        'group border-b border-border/60 transition last:border-0 hover:bg-surface',
         !node.enabled && 'opacity-45',
       )}
     >
-      <td className="px-3 py-2 align-top">
-        <Checkbox checked={checked} onChange={onToggle} className="mt-1" />
+      <td className="px-3 py-2.5 align-middle">
+        <Checkbox checked={checked} onChange={onToggle} />
       </td>
 
       {/* 名称是主信息，放大；地址退到第二行，小字弱化 */}
-      <td className="min-w-0 px-2 py-2">
+      <td className="min-w-0 px-2 py-2.5 align-middle">
         {editing !== null ? (
           <Input
             autoFocus
@@ -379,19 +402,16 @@ function NodeRow({
         )}
       </td>
 
-      <td className="px-2 py-2 align-top">
+      <td className="px-2 py-2.5 align-middle">
         <Chip>{node.type}</Chip>
       </td>
 
-      <td className="px-2 py-2 align-top">
+      <td className="px-2 py-2.5 align-middle">
         <div className="flex flex-wrap gap-1">
           {node.tagIds.map((id) => {
             const tag = tagById.get(id);
             return tag ? (
-              <Chip
-                key={id}
-                style={{ color: tag.color, backgroundColor: `${tag.color}1f` }}
-              >
+              <Chip key={id} style={{ color: tag.color, borderColor: tag.color }}>
                 {tag.name}
               </Chip>
             ) : null;
@@ -400,7 +420,7 @@ function NodeRow({
       </td>
 
       {/* 延迟是这张表最该被一眼看到的数字 */}
-      <td className="px-2 py-2 text-right align-top">
+      <td className="px-2 py-2.5 text-right align-middle">
         {node.lastStatus === null ? (
           <span className="text-xs text-muted">未测速</span>
         ) : (
@@ -420,7 +440,7 @@ function NodeRow({
       </td>
 
       {/* 删除按钮平时隐形，鼠标移到这一行才露出来 */}
-      <td className="px-2 py-2 text-center align-top">
+      <td className="px-2 py-2.5 text-center align-middle">
         <button
           type="button"
           title="删除这个节点"
@@ -428,7 +448,7 @@ function NodeRow({
             if (confirm(`删除节点「${node.name}」？`)) onDelete();
           }}
           className={cn(
-            'rounded p-1 text-muted opacity-0 transition',
+            'hover-reveal rounded p-1 text-muted opacity-0 transition',
             'group-hover:opacity-100 hover:bg-danger/12 hover:text-danger focus-visible:opacity-100',
           )}
         >
@@ -436,5 +456,102 @@ function NodeRow({
         </button>
       </td>
     </tr>
+  );
+}
+
+/**
+ * 手机上的节点卡片。
+ * 表格那 6 列在 375px 宽度下挤成一团，这里改成两行布局：
+ * 第一行是名称和延迟这两个最该被一眼看到的，第二行是地址、协议、标签这些次要信息。
+ */
+function NodeCard({
+  node,
+  tagById,
+  checked,
+  first,
+  onToggle,
+  onRename,
+  onDelete,
+}: {
+  node: NodeItem;
+  tagById: Map<string, Tag>;
+  checked: boolean;
+  first: boolean;
+  onToggle: () => void;
+  onRename: () => void;
+  onDelete: () => void;
+}) {
+  const alive = node.lastStatus === 'ok';
+
+  return (
+    <div
+      className={cn(
+        'flex gap-3 px-3 py-3',
+        !first && 'border-t border-border/60',
+        !node.enabled && 'opacity-45',
+      )}
+    >
+      <Checkbox checked={checked} onChange={onToggle} className="mt-1 shrink-0" />
+
+      <div className="min-w-0 flex-1">
+        <div className="flex items-start gap-2">
+          {/* 手机上没有双击，改成长按/点击名称弹输入框 */}
+          <button
+            type="button"
+            onClick={onRename}
+            className="min-w-0 flex-1 truncate text-left text-[0.9375rem] leading-tight"
+          >
+            {node.name}
+          </button>
+
+          <div className="shrink-0 text-right">
+            {node.lastStatus === null ? (
+              <span className="text-xs text-muted">未测速</span>
+            ) : (
+              <span
+                className={cn(
+                  'text-[0.9375rem] leading-tight tabular',
+                  delayTone(node.lastDelayMs, node.lastStatus),
+                )}
+              >
+                {alive ? node.lastDelayMs : (STATUS_LABEL[node.lastStatus] ?? node.lastStatus)}
+                {alive && <span className="ml-0.5 text-2xs text-muted">ms</span>}
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div className="mt-1 truncate font-mono text-2xs text-muted">
+          {node.server}:{node.port}
+        </div>
+
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          <Chip>{node.type}</Chip>
+          {node.tagIds.map((id) => {
+            const tag = tagById.get(id);
+            return tag ? (
+              <Chip key={id} style={{ color: tag.color, borderColor: tag.color }}>
+                {tag.name}
+              </Chip>
+            ) : null;
+          })}
+          {!node.enabled && <span className="text-2xs text-muted">已停用</span>}
+          {node.lastTestedAt !== null && (
+            <span className="ml-auto text-2xs text-muted">{formatTime(node.lastTestedAt)}</span>
+          )}
+          <button
+            type="button"
+            aria-label="删除这个节点"
+            onClick={onDelete}
+            className={cn(
+              'rounded p-1.5 text-muted transition hover:bg-danger/12 hover:text-danger',
+              node.lastTestedAt === null && 'ml-auto',
+            )}
+          >
+            <Trash2 className="size-4" />
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }

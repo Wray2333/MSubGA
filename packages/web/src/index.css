@@ -1,27 +1,51 @@
 @import 'tailwindcss';
+/* 只引拉丁子集：中文由系统字体承担，西里尔/希腊这个界面永远用不到 */
+@import '@fontsource/jetbrains-mono/latin-400.css';
+@import '@fontsource/jetbrains-mono/latin-500.css';
+@import '@fontsource/jetbrains-mono/latin-700.css';
 
+/*
+ * 视觉方向：Ethereal Glass —— 深黑基底 + 冷色渐变 + 发丝边框。
+ * JetBrains Mono 承担全部拉丁字母和数字，中文落到系统字体，
+ * 等宽的拉丁配上比例排布的汉字，正好是这套工具要的技术感。
+ */
 @theme {
-  /* 中性色阶：从背景到前景，每一档都要能明显区分，否则边框和卡片会糊成一片 */
-  --color-bg: oklch(0.165 0.008 265);
-  --color-surface: oklch(0.205 0.009 265);
-  --color-surface-2: oklch(0.248 0.01 265);
-  --color-border: oklch(0.285 0.01 265);
-  --color-border-strong: oklch(0.38 0.012 265);
+  /* 基底：接近 OLED 黑，但留一点蓝调，纯黑会显得死 */
+  --color-bg: #06070a;
+  --color-surface: #0d0f14;
+  --color-surface-2: #14171e;
+  --color-border: #1e222b;
+  --color-border-strong: #2f3542;
 
-  /* 文字三档：主要 / 次要 / 弱化。层级靠颜色分，不全靠字号 */
-  --color-fg: oklch(0.97 0 0);
-  --color-fg-2: oklch(0.79 0.004 265);
-  --color-muted: oklch(0.61 0.008 265);
+  --color-fg: #e8ecf4;
+  --color-fg-2: #a9b2c4;
+  --color-muted: #7d879b;
 
-  --color-accent: oklch(0.72 0.15 250);
-  --color-accent-fg: oklch(0.18 0.03 250);
-  --color-danger: oklch(0.68 0.19 25);
-  --color-ok: oklch(0.75 0.16 155);
-  --color-warn: oklch(0.8 0.15 80);
+  /*
+   * 强调色：电光青，渐变走到靛蓝。
+   * 靛蓝这端取 #818cf8 而不是更深的 #6366f1：主按钮是深色字压在渐变上，
+   * #6366f1 那端只有 4.24:1，字会糊；#818cf8 是 6.35:1。
+   */
+  --color-accent: #38bdf8;
+  --color-accent-2: #818cf8;
+  --color-accent-fg: #04121c;
 
-  /* 字号：14 是正文，重要的往上走一档，辅助信息往下走 */
+  --color-terminal: #4ade80;
+  --color-danger: #fb7185;
+  --color-ok: #4ade80;
+  --color-warn: #fbbf24;
+
   --text-2xs: 0.6875rem;
   --text-2xs--line-height: 1rem;
+
+  /* 科技风不要方角也不要圆滚滚，4px 刚好 */
+  --radius-sm: 3px;
+  --radius: 4px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
+  --radius-xl: 8px;
+  --radius-2xl: 10px;
+  --radius-full: 9999px;
 }
 
 html,
@@ -31,47 +55,111 @@ body,
 }
 
 body {
-  background: var(--color-bg);
-  color: var(--color-fg);
+  /* JetBrains Mono 没有汉字，拉丁和数字走它，中文自然落到后面的系统字体 */
   font-family:
-    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    'JetBrains Mono', ui-monospace, 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', sans-serif;
   font-size: 0.875rem;
   line-height: 1.5;
+  color: var(--color-fg);
+  background: var(--color-bg);
   -webkit-font-smoothing: antialiased;
-  text-rendering: optimizeLegibility;
+}
+
+/* 背景的氛围光：两团极淡的冷色光晕，fixed 不随滚动，也不吃事件 */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(60rem 40rem at 12% -10%, rgb(56 189 248 / 0.07), transparent 60%),
+    radial-gradient(50rem 36rem at 105% 8%, rgb(99 102 241 / 0.08), transparent 62%);
 }
 
 code,
 pre,
-.font-mono {
-  font-family: ui-monospace, 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
+.font-mono,
+input,
+select,
+textarea {
+  font-family: 'JetBrains Mono', ui-monospace, 'PingFang SC', 'Microsoft YaHei', monospace;
   font-feature-settings: 'liga' 0;
 }
 
-/* 数字等宽，表格里的延迟值才不会左右跳动 */
+/* 元数据、表头、字段标签 */
+.telemetry {
+  font-size: 0.6875rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  line-height: 1.3;
+}
+
+/* 汉字既不能 uppercase 也吃不消那么宽的字距，单独一档 */
+.telemetry-cjk {
+  font-size: 0.6875rem;
+  letter-spacing: 0.1em;
+  line-height: 1.3;
+}
+
 .tabular {
   font-variant-numeric: tabular-nums;
 }
 
+/* 主操作的渐变。单独抽出来，按钮和进度条共用 */
+.grad-accent {
+  background-image: linear-gradient(135deg, var(--color-accent) 0%, var(--color-accent-2) 100%);
+}
+
+/* 发丝边框：上缘亮一点，模拟受光面 */
+.hairline-top {
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.06);
+}
+
 ::-webkit-scrollbar {
-  width: 9px;
-  height: 9px;
+  width: 10px;
+  height: 10px;
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--color-border);
-  border-radius: 999px;
+  background: var(--color-border-strong);
+  border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-border-strong);
+  background: var(--color-accent);
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 
-/* 键盘焦点要看得见，鼠标点击不要出现焦点框 */
 :focus-visible {
   outline: 2px solid var(--color-accent);
   outline-offset: 1px;
+}
+
+::selection {
+  background: rgb(56 189 248 / 0.3);
+  color: var(--color-fg);
+}
+
+input,
+textarea {
+  caret-color: var(--color-accent);
+}
+
+/* 触摸设备没有 hover，别让「悬停才出现」的操作永远摸不到 */
+@media (hover: none) {
+  .hover-reveal {
+    opacity: 1 !important;
+  }
+}
+
+/* iOS 上字号小于 16px 的输入框会触发自动缩放 */
+@supports (-webkit-touch-callout: none) {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

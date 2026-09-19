@@ -1,20 +1,18 @@
-import { BUILTIN_PROFILES } from '@msubga/core';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Copy, Lock, Plus, Trash2 } from 'lucide-react';
-import { useState } from 'react';
+import { ChevronRight, Copy, Lock, Plus, Trash2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Chip, Button, Empty, Spinner } from '../components/ui';
+import { Button, Chip, Empty, PageHeader, Spinner } from '../components/ui';
 import { api } from '../lib/api';
-import { formatTime } from '../lib/utils';
-import { ProfileEditor, type ProfileDraft } from './ProfileEditor';
+import { cn, formatTime } from '../lib/utils';
 
 export function ProfilesPage() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const { data, isLoading } = useQuery({ queryKey: ['profiles'], queryFn: api.profiles.list });
-  const { data: rulesetData } = useQuery({ queryKey: ['rulesets'], queryFn: api.rulesets.list });
-  const [draft, setDraft] = useState<ProfileDraft | null>(null);
 
   const refresh = () => void queryClient.invalidateQueries({ queryKey: ['profiles'] });
+  const onError = (error: Error) => toast.error(error.message);
 
   const remove = useMutation({
     mutationFn: (id: string) => api.profiles.remove(id),
@@ -22,122 +20,94 @@ export function ProfilesPage() {
       toast.success('已删除');
       refresh();
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError,
   });
 
   const duplicate = useMutation({
     mutationFn: (id: string) => api.profiles.duplicate(id),
     onSuccess: ({ profile }) => {
       refresh();
-      setDraft({
-        id: profile.id,
-        name: profile.name,
-        description: profile.description ?? '',
-        definition: profile.definition,
-      });
+      navigate(`/profiles/${profile.id}`);
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError,
   });
 
   if (isLoading) return <Spinner />;
   const profiles = data?.profiles ?? [];
 
   return (
-    <div className="space-y-3 p-5">
-      <header className="flex items-center gap-2">
-        <h1 className="mr-auto text-base font-semibold">
-          规则模板
-          <span className="ml-2 text-xs font-normal text-muted">
-            决定订阅里有哪些策略组、流量按什么顺序分流
-          </span>
-        </h1>
-        <Button
-          variant="primary"
-          onClick={() =>
-            setDraft({
-              id: null,
-              name: '',
-              description: '',
-              // 拿内置的「规则分流」当起点，比从空白开始好用得多
-              definition: structuredClone(BUILTIN_PROFILES[0]!.definition),
-            })
-          }
-        >
-          <Plus className="h-3.5 w-3.5" />
+    <div className="space-y-4 p-4 sm:p-6">
+      <PageHeader
+        title="规则模板"
+        count={`${profiles.length} 个`}
+        subtitle="决定订阅里有哪些策略组、流量按什么顺序分流"
+      >
+        <Button variant="primary" onClick={() => navigate('/profiles/new')}>
+          <Plus className="size-4" />
           新建
         </Button>
-      </header>
+      </PageHeader>
 
       {profiles.length === 0 ? (
         <Empty title="还没有规则模板">先复制一份内置模板，或者点右上角新建</Empty>
       ) : (
-        <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-          {profiles.map((profile) => (
-            <div key={profile.id} className="flex flex-col rounded-xl border border-border bg-surface p-3.5 transition hover:border-border-strong">
-              <div className="mb-1 flex items-center gap-1.5">
-                {profile.builtin && <Lock className="h-3 w-3 shrink-0 text-muted" />}
-                <h3 className="truncate text-[0.9375rem] font-medium">{profile.name}</h3>
-              </div>
-              <p className="mb-2 line-clamp-2 min-h-[2.5rem] text-xs text-muted">
-                {profile.description ?? '没有说明'}
-              </p>
-              <div className="mb-3 flex flex-wrap gap-1">
-                <Chip className="bg-surface-2 text-muted">
-                  {profile.definition.groups.length} 个策略组
-                </Chip>
-                <Chip className="bg-surface-2 text-muted">{profile.definition.rules.length} 条规则</Chip>
-              </div>
-              <div className="mt-auto flex items-center gap-1">
-                <span className="mr-auto text-[11px] text-muted">{formatTime(profile.updatedAt)}</span>
-                {profile.builtin ? (
-                  <Button size="sm" onClick={() => duplicate.mutate(profile.id)}>
-                    <Copy className="h-3 w-3" />
-                    复制后编辑
-                  </Button>
-                ) : (
-                  <>
-                    <Button
-                      size="sm"
-                      onClick={() =>
-                        setDraft({
-                          id: profile.id,
-                          name: profile.name,
-                          description: profile.description ?? '',
-                          definition: profile.definition,
-                        })
-                      }
-                    >
-                      编辑
+        <div className="overflow-hidden rounded-xl border border-border">
+          {profiles.map((profile, index) => {
+            const editable = !profile.builtin;
+            return (
+              <div
+                key={profile.id}
+                className={cn(
+                  'group flex items-center gap-3 px-3 py-3 transition hover:bg-surface/60 sm:px-4',
+                  index > 0 && 'border-t border-border/60',
+                )}
+              >
+                <button
+                  type="button"
+                  onClick={() => navigate(`/profiles/${profile.id}`)}
+                  title={editable ? '编辑这个模板' : '查看这个模板（内置模板只读）'}
+                  className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      {profile.builtin && <Lock className="size-3 shrink-0 text-muted" />}
+                      <span className="truncate text-[0.9375rem] font-medium">{profile.name}</span>
+                    </div>
+                    <p className="mt-0.5 line-clamp-1 text-2xs text-muted">
+                      {profile.description ?? '没有说明'}
+                    </p>
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                      <Chip>{profile.definition.groups.length} 组</Chip>
+                      <Chip>{profile.definition.rules.length} 条规则</Chip>
+                      <span className="text-2xs text-muted">{formatTime(profile.updatedAt)}</span>
+                    </div>
+                  </div>
+                  <ChevronRight className="hidden size-4 shrink-0 text-muted sm:block" />
+                </button>
+
+                <div className="flex shrink-0 items-center gap-1">
+                  {profile.builtin ? (
+                    <Button size="sm" onClick={() => duplicate.mutate(profile.id)}>
+                      <Copy className="size-3" />
+                      <span className="hidden sm:inline">复制后编辑</span>
                     </Button>
+                  ) : (
                     <Button
                       size="sm"
                       variant="danger"
+                      className="hover-reveal opacity-0 transition group-hover:opacity-100 focus-visible:opacity-100"
                       onClick={() => {
                         if (confirm(`删除模板「${profile.name}」？`)) remove.mutate(profile.id);
                       }}
                     >
-                      <Trash2 className="h-3 w-3" />
+                      <Trash2 className="size-3" />
                     </Button>
-                  </>
-                )}
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
-      )}
-
-      {draft && (
-        <ProfileEditor
-          draft={draft}
-          rulesets={rulesetData?.rulesets ?? []}
-          onChange={setDraft}
-          onClose={() => setDraft(null)}
-          onSaved={() => {
-            toast.success('模板已保存');
-            setDraft(null);
-            refresh();
-          }}
-        />
       )}
     </div>
   );
